@@ -29,7 +29,7 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
   const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
   const [activeId, setActiveId] = useState<string | null>(null);
   const [copyMode, setCopyMode] = useState(false);
-  const [contextMenu, setContextMenu] = useState<{ shift: Shift; x: number; y: number } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ shift: Shift; x: number; y: number; confirmDelete?: boolean } | null>(null);
 
   const days = Array.from({ length: 7 }).map((_, i) => addDays(currentWeekStart, i));
   const activeEmployees = employees.filter((e) => e.active && e.role === 'employee');
@@ -59,10 +59,18 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
   };
 
   const handleDeleteShift = (shiftId: string) => {
-    if (confirm('Supprimer ce shift ?')) {
-      onUpdateShifts(shifts.filter((s) => s.id !== shiftId));
-    }
+    onUpdateShifts(shifts.filter((s) => s.id !== shiftId));
     setContextMenu(null);
+  };
+
+  const handleRequestDelete = (shift: Shift) => {
+    setContextMenu({ ...contextMenu!, shift, confirmDelete: true });
+  };
+
+  const handleCancelDelete = () => {
+    if (contextMenu) {
+      setContextMenu({ ...contextMenu, confirmDelete: false });
+    }
   };
 
   const handleSaveShift = (shift: Shift) => {
@@ -375,50 +383,79 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
       {/* Context Menu */}
       {contextMenu && (
         <div
-          className="fixed z-50 bg-white rounded-xl shadow-2xl border border-gray-200 py-2 min-w-[180px]"
+          className="fixed z-[100] bg-white rounded-xl shadow-2xl border border-gray-200 py-2 min-w-[200px]"
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="px-4 py-2 border-b border-gray-100">
-            <p className="font-semibold text-gray-800 text-sm">
-              {contextMenu.shift.startTime} - {contextMenu.shift.endTime}
-            </p>
-            <p className="text-xs text-gray-500">{contextMenu.shift.role}</p>
-          </div>
-          <button
-            onClick={() => {
-              setEditingShift(contextMenu.shift);
-              setShowAddModal(true);
-              setContextMenu(null);
-            }}
-            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-          >
-            <i className="fas fa-edit text-amber-500 w-4"></i>
-            Modifier
-          </button>
-          <button
-            onClick={() => {
-              const shift = contextMenu.shift;
-              const newShift: Shift = {
-                ...shift,
-                id: `shift-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              };
-              onUpdateShifts([...shifts, newShift]);
-              setContextMenu(null);
-            }}
-            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-          >
-            <i className="fas fa-copy text-blue-500 w-4"></i>
-            Dupliquer
-          </button>
-          <div className="border-t border-gray-100 my-1"></div>
-          <button
-            onClick={() => handleDeleteShift(contextMenu.shift.id)}
-            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-          >
-            <i className="fas fa-trash w-4"></i>
-            Supprimer
-          </button>
+          {!contextMenu.confirmDelete ? (
+            <>
+              <div className="px-4 py-2 border-b border-gray-100">
+                <p className="font-semibold text-gray-800 text-sm">
+                  {contextMenu.shift.startTime} - {contextMenu.shift.endTime}
+                </p>
+                <p className="text-xs text-gray-500">{contextMenu.shift.role}</p>
+              </div>
+              <button
+                onClick={() => {
+                  setEditingShift(contextMenu.shift);
+                  setShowAddModal(true);
+                  setContextMenu(null);
+                }}
+                className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+              >
+                <i className="fas fa-edit text-amber-500 w-4"></i>
+                Modifier
+              </button>
+              <button
+                onClick={() => {
+                  const shift = contextMenu.shift;
+                  const newShift: Shift = {
+                    ...shift,
+                    id: `shift-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                  };
+                  onUpdateShifts([...shifts, newShift]);
+                  setContextMenu(null);
+                }}
+                className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+              >
+                <i className="fas fa-copy text-blue-500 w-4"></i>
+                Dupliquer
+              </button>
+              <div className="border-t border-gray-100 my-1"></div>
+              <button
+                onClick={() => handleRequestDelete(contextMenu.shift)}
+                className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+              >
+                <i className="fas fa-trash w-4"></i>
+                Supprimer
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="px-4 py-3 border-b border-gray-100">
+                <p className="font-semibold text-gray-800 text-sm">
+                  Confirmer la suppression ?
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {contextMenu.shift.startTime} - {contextMenu.shift.endTime}
+                </p>
+              </div>
+              <div className="p-2 flex gap-2">
+                <button
+                  onClick={handleCancelDelete}
+                  className="flex-1 px-3 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={() => handleDeleteShift(contextMenu.shift.id)}
+                  className="flex-1 px-3 py-2 text-sm text-white bg-red-500 hover:bg-red-600 rounded-lg font-medium"
+                >
+                  Supprimer
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
