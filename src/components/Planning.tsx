@@ -131,7 +131,7 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
                     </div>
                   </th>
                 ))}
-                <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[140px]">
+                <th className="sticky right-0 bg-gray-50 z-10 px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[160px] border-l border-gray-200">
                   <div>Total</div>
                   <div className="text-[10px] font-normal text-gray-400 normal-case">/ Contrat</div>
                 </th>
@@ -139,7 +139,21 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filteredEmployees.map((employee) => {
+                // Calcul du total hebdomadaire AVANT le rendu
                 let weekTotal = 0;
+                days.forEach((day) => {
+                  const dateStr = format(day, 'yyyy-MM-dd');
+                  const dayShifts = getShiftsForDay(employee.id, dateStr);
+                  dayShifts.forEach((s) => {
+                    weekTotal += calculateHours(s.startTime, s.endTime);
+                  });
+                });
+
+                const weeklyContractHours = employee.monthlyHours / 4.33;
+                const difference = weekTotal - weeklyContractHours;
+                const isPositive = difference > 0.05;
+                const isNegative = difference < -0.05;
+
                 return (
                   <tr key={employee.id} className="hover:bg-gray-50/50">
                     <td className="sticky left-0 bg-white z-10 px-4 py-3">
@@ -158,7 +172,6 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
                     {days.map((day) => {
                       const dateStr = format(day, 'yyyy-MM-dd');
                       const dayShifts = getShiftsForDay(employee.id, dateStr);
-                      dayShifts.forEach((s) => { weekTotal += calculateHours(s.startTime, s.endTime); });
 
                       return (
                         <td key={dateStr} className={`px-2 py-2 text-center ${isToday(day) ? 'bg-amber-50/30' : ''}`}>
@@ -210,34 +223,23 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
                         </td>
                       );
                     })}
-                    <td className="px-3 py-3 text-center">
-                      <div className="space-y-1">
-                        <span className="inline-flex items-center px-2 py-1 rounded-lg bg-gray-100 text-sm font-semibold text-gray-700">
+                    <td className="sticky right-0 bg-white z-10 px-3 py-3 text-center border-l border-gray-200">
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-gray-100 text-sm font-bold text-gray-800">
                           {weekTotal.toFixed(1)}h
                         </span>
-                        {(() => {
-                          const weeklyContractHours = employee.monthlyHours / 4.33;
-                          const difference = weekTotal - weeklyContractHours;
-                          const isPositive = difference > 0;
-                          const isNeutral = Math.abs(difference) < 0.1;
-                          
-                          return (
-                            <div className="flex flex-col items-center">
-                              <span className="text-[10px] text-gray-400">
-                                / {weeklyContractHours.toFixed(1)}h
-                              </span>
-                              <span className={`inline-flex items-center text-xs font-bold px-1.5 py-0.5 rounded ${
-                                isNeutral 
-                                  ? 'text-gray-500 bg-gray-50' 
-                                  : isPositive 
-                                    ? 'text-green-600 bg-green-50' 
-                                    : 'text-red-600 bg-red-50'
-                              }`}>
-                                {isNeutral ? '=' : isPositive ? '+' : ''}{difference.toFixed(1)}h
-                              </span>
-                            </div>
-                          );
-                        })()}
+                        <span className="text-[10px] text-gray-400 font-medium">
+                          / {weeklyContractHours.toFixed(1)}h
+                        </span>
+                        <span className={`inline-flex items-center text-xs font-bold px-2 py-0.5 rounded-full ${
+                          isPositive
+                            ? 'text-green-700 bg-green-100'
+                            : isNegative
+                              ? 'text-red-700 bg-red-100'
+                              : 'text-gray-500 bg-gray-100'
+                        }`}>
+                          {isPositive ? '+' : isNegative ? '' : ''}{difference.toFixed(1)}h
+                        </span>
                       </div>
                     </td>
                   </tr>
