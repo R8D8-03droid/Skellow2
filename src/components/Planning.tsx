@@ -131,10 +131,7 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
                     </div>
                   </th>
                 ))}
-                <th className="sticky right-0 bg-gray-50 z-10 px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[160px] border-l border-gray-200">
-                  <div>Total</div>
-                  <div className="text-[10px] font-normal text-gray-400 normal-case">/ Contrat</div>
-                </th>
+
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -157,7 +154,7 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
                 return (
                   <tr key={employee.id} className="hover:bg-gray-50/50">
                     <td className="sticky left-0 bg-white z-10 px-4 py-3">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 mb-2">
                         <div className="w-8 h-8 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center text-white font-bold text-xs">
                           {employee.firstName[0]}{employee.lastName[0]}
                         </div>
@@ -167,6 +164,23 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
                           </p>
                           <p className="text-xs text-gray-400">{employee.department}</p>
                         </div>
+                      </div>
+                      <div className="flex items-center gap-2 pl-11 pt-1 border-t border-gray-100">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-xs font-bold text-gray-800">
+                          {weekTotal.toFixed(1)}h
+                        </span>
+                        <span className="text-[10px] text-gray-400">
+                          / {weeklyContractHours.toFixed(1)}h
+                        </span>
+                        <span className={`inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                          isPositive
+                            ? 'text-green-700 bg-green-100'
+                            : isNegative
+                              ? 'text-red-700 bg-red-100'
+                              : 'text-gray-500 bg-gray-100'
+                        }`}>
+                          {isPositive ? '+' : isNegative ? '' : ''}{difference.toFixed(1)}h
+                        </span>
                       </div>
                     </td>
                     {days.map((day) => {
@@ -223,25 +237,7 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
                         </td>
                       );
                     })}
-                    <td className="sticky right-0 bg-white z-10 px-3 py-3 text-center border-l border-gray-200">
-                      <div className="flex flex-col items-center gap-1">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-gray-100 text-sm font-bold text-gray-800">
-                          {weekTotal.toFixed(1)}h
-                        </span>
-                        <span className="text-[10px] text-gray-400 font-medium">
-                          / {weeklyContractHours.toFixed(1)}h
-                        </span>
-                        <span className={`inline-flex items-center text-xs font-bold px-2 py-0.5 rounded-full ${
-                          isPositive
-                            ? 'text-green-700 bg-green-100'
-                            : isNegative
-                              ? 'text-red-700 bg-red-100'
-                              : 'text-gray-500 bg-gray-100'
-                        }`}>
-                          {isPositive ? '+' : isNegative ? '' : ''}{difference.toFixed(1)}h
-                        </span>
-                      </div>
-                    </td>
+
                   </tr>
                 );
               })}
