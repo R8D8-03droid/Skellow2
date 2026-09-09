@@ -93,15 +93,15 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
     const shiftId = active.id as string;
     const dropData = over.id as string;
     
-    // Parse drop target: "cell-{employeeId}-{date}"
-    if (!dropData.startsWith('cell-')) return;
+    // Parse drop target: "cell::{employeeId}::{date}"
+    if (!dropData.startsWith('cell::')) return;
     
-    const parts = dropData.replace('cell-', '').split('-');
-    if (parts.length < 2) return;
+    const payload = dropData.replace('cell::', '');
+    const sepIndex = payload.lastIndexOf('::');
+    if (sepIndex === -1) return;
     
-    // employeeId might contain hyphens, date is last part
-    const date = parts[parts.length - 1];
-    const employeeId = parts.slice(0, parts.length - 1).join('-');
+    const employeeId = payload.substring(0, sepIndex);
+    const date = payload.substring(sepIndex + 2);
     
     const shift = shifts.find((s) => s.id === shiftId);
     if (!shift) return;
@@ -311,7 +311,7 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
                       {days.map((day) => {
                         const dateStr = format(day, 'yyyy-MM-dd');
                         const dayShifts = getShiftsForDay(employee.id, dateStr);
-                        const dropId = `cell-${employee.id}-${dateStr}`;
+                        const dropId = `cell::${employee.id}::${dateStr}`;
 
                         return (
                           <DroppableCell key={dateStr} id={dropId} isToday={isToday(day)}>
