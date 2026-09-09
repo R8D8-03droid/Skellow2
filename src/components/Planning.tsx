@@ -131,8 +131,9 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
                     </div>
                   </th>
                 ))}
-                <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Total
+                <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[140px]">
+                  <div>Total</div>
+                  <div className="text-[10px] font-normal text-gray-400 normal-case">/ Contrat</div>
                 </th>
               </tr>
             </thead>
@@ -210,9 +211,34 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
                       );
                     })}
                     <td className="px-3 py-3 text-center">
-                      <span className="inline-flex items-center px-2 py-1 rounded-lg bg-gray-100 text-sm font-semibold text-gray-700">
-                        {weekTotal.toFixed(1)}h
-                      </span>
+                      <div className="space-y-1">
+                        <span className="inline-flex items-center px-2 py-1 rounded-lg bg-gray-100 text-sm font-semibold text-gray-700">
+                          {weekTotal.toFixed(1)}h
+                        </span>
+                        {(() => {
+                          const weeklyContractHours = employee.monthlyHours / 4.33;
+                          const difference = weekTotal - weeklyContractHours;
+                          const isPositive = difference > 0;
+                          const isNeutral = Math.abs(difference) < 0.1;
+                          
+                          return (
+                            <div className="flex flex-col items-center">
+                              <span className="text-[10px] text-gray-400">
+                                / {weeklyContractHours.toFixed(1)}h
+                              </span>
+                              <span className={`inline-flex items-center text-xs font-bold px-1.5 py-0.5 rounded ${
+                                isNeutral 
+                                  ? 'text-gray-500 bg-gray-50' 
+                                  : isPositive 
+                                    ? 'text-green-600 bg-green-50' 
+                                    : 'text-red-600 bg-red-50'
+                              }`}>
+                                {isNeutral ? '=' : isPositive ? '+' : ''}{difference.toFixed(1)}h
+                              </span>
+                            </div>
+                          );
+                        })()}
+                      </div>
                     </td>
                   </tr>
                 );
