@@ -88,7 +88,9 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
 
   const handleDragStart = (event: DragStartEvent) => {
     if (!isAdmin) return;
-    setActiveId(event.active.id as string);
+    const shiftId = event.active.id as string;
+    setActiveId(shiftId);
+    setContextMenu(null); // Fermer le menu si ouvert
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -535,16 +537,22 @@ function DraggableShift({ shift, isAdmin, onClick, copyMode }: {
         <div
           {...listeners}
           {...attributes}
-          className="flex items-center justify-center w-4 bg-amber-200/50 rounded-l-lg cursor-grab active:cursor-grabbing hover:bg-amber-300/70 transition-colors"
+          className="flex items-center justify-center w-5 bg-amber-200/50 rounded-l-lg cursor-grab active:cursor-grabbing hover:bg-amber-300/70 transition-colors touch-none select-none"
           title="Glisser pour déplacer"
         >
-          <i className="fas fa-grip-vertical text-amber-600 text-[8px]"></i>
+          <i className="fas fa-grip-vertical text-amber-600 text-[9px]"></i>
         </div>
       )}
       
       {/* Shift Content (clickable) */}
       <div
         onClick={onClick}
+        onPointerDown={(e) => {
+          // Empêcher le drag quand on clique sur le contenu
+          if (isAdmin) {
+            e.stopPropagation();
+          }
+        }}
         className={`flex-1 px-2 py-1.5 cursor-pointer ${isAdmin ? 'rounded-r-lg' : 'rounded-lg'}`}
       >
         <p className="font-semibold text-amber-800">
