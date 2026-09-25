@@ -231,8 +231,8 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
         <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-xl text-sm text-blue-700 flex items-start gap-2">
           <i className="fas fa-info-circle mt-0.5"></i>
           <div>
-            <span className="font-medium">Glissez-déposez</span> les shifts pour les déplacer. 
-            Activez le <span className="font-medium">mode copie</span> pour dupliquer un shift au lieu de le déplacer. 
+            <span className="font-medium">⠿ Glissez</span> la poignée à gauche d'un shift pour le déplacer. 
+            Activez le <span className="font-medium">mode copie</span> pour dupliquer au lieu de déplacer. 
             <span className="font-medium">Cliquez</span> sur un shift pour le modifier ou le supprimer.
           </div>
         </div>
@@ -386,6 +386,9 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
           className="fixed z-[100] bg-white rounded-xl shadow-2xl border border-gray-200 py-2 min-w-[200px]"
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
         >
           {!contextMenu.confirmDelete ? (
             <>
@@ -396,6 +399,8 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
                 <p className="text-xs text-gray-500">{contextMenu.shift.role}</p>
               </div>
               <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => {
                   setEditingShift(contextMenu.shift);
                   setShowAddModal(true);
@@ -407,6 +412,8 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
                 Modifier
               </button>
               <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => {
                   const shift = contextMenu.shift;
                   const newShift: Shift = {
@@ -423,6 +430,8 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
               </button>
               <div className="border-t border-gray-100 my-1"></div>
               <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => handleRequestDelete(contextMenu.shift)}
                 className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
               >
@@ -442,12 +451,16 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
               </div>
               <div className="p-2 flex gap-2">
                 <button
+                  type="button"
+                  onPointerDown={(e) => e.stopPropagation()}
                   onClick={handleCancelDelete}
                   className="flex-1 px-3 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium"
                 >
                   Annuler
                 </button>
                 <button
+                  type="button"
+                  onPointerDown={(e) => e.stopPropagation()}
                   onClick={() => handleDeleteShift(contextMenu.shift.id)}
                   className="flex-1 px-3 py-2 text-sm text-white bg-red-500 hover:bg-red-600 rounded-lg font-medium"
                 >
@@ -500,36 +513,66 @@ function DraggableShift({ shift, isAdmin, onClick, copyMode }: {
     disabled: !isAdmin,
   });
 
+  const handleButtonClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    onClick(e);
+  };
+
+  const handleButtonPointerDown = (e: React.PointerEvent) => {
+    e.stopPropagation();
+  };
+
   return (
     <div
       ref={setNodeRef}
-      {...(isAdmin ? listeners : {})}
-      {...(isAdmin ? attributes : {})}
-      onClick={onClick}
-      className={`group relative bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg px-2 py-1.5 text-xs transition-all ${
-        isAdmin ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
-      } ${isDragging ? 'opacity-30 scale-95' : 'hover:shadow-sm hover:border-amber-300'}`}
+      className={`group relative flex items-stretch bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg text-xs transition-all ${
+        isDragging ? 'opacity-30 scale-95' : 'hover:shadow-sm hover:border-amber-300'
+      }`}
     >
-      <p className="font-semibold text-amber-800">
-        {shift.startTime} - {shift.endTime}
-      </p>
-      <p className="text-amber-600 text-[10px]">{shift.role}</p>
+      {/* Drag Handle (admin only) */}
       {isAdmin && (
-        <div className="absolute -top-1.5 -right-1.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div
+          {...listeners}
+          {...attributes}
+          className="flex items-center justify-center w-4 bg-amber-200/50 rounded-l-lg cursor-grab active:cursor-grabbing hover:bg-amber-300/70 transition-colors"
+          title="Glisser pour déplacer"
+        >
+          <i className="fas fa-grip-vertical text-amber-600 text-[8px]"></i>
+        </div>
+      )}
+      
+      {/* Shift Content (clickable) */}
+      <div
+        onClick={onClick}
+        className={`flex-1 px-2 py-1.5 cursor-pointer ${isAdmin ? 'rounded-r-lg' : 'rounded-lg'}`}
+      >
+        <p className="font-semibold text-amber-800">
+          {shift.startTime} - {shift.endTime}
+        </p>
+        <p className="text-amber-600 text-[10px]">{shift.role}</p>
+      </div>
+
+      {/* Action Button (admin only) */}
+      {isAdmin && (
+        <div className="absolute -top-1.5 -right-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onClick(e);
-            }}
-            className="w-4 h-4 bg-amber-500 text-white rounded-full text-[8px] flex items-center justify-center hover:bg-amber-600"
+            type="button"
+            onPointerDown={handleButtonPointerDown}
+            onPointerUp={(e) => e.stopPropagation()}
+            onClick={handleButtonClick}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="w-5 h-5 bg-amber-500 text-white rounded-full text-[9px] flex items-center justify-center hover:bg-amber-600 shadow-md z-20 relative"
             title="Modifier / Supprimer"
           >
-            <i className="fas fa-ellipsis-h text-[6px]"></i>
+            <i className="fas fa-ellipsis-h text-[7px]"></i>
           </button>
         </div>
       )}
+
+      {/* Copy Mode Indicator */}
       {copyMode && isAdmin && (
-        <div className="absolute top-0.5 left-0.5">
+        <div className="absolute top-0.5 left-5">
           <i className="fas fa-copy text-blue-400 text-[8px]"></i>
         </div>
       )}
