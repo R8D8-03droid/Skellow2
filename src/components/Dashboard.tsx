@@ -22,13 +22,22 @@ export default function Dashboard({ employees, shifts, currentUser }: DashboardP
     (s) => s.employeeId === currentUser.id && isThisWeek(new Date(s.date), { weekStartsOn: 1 })
   );
 
-  // Calculate total hours this week for current user
+  // Calculate total hours this week for current user (excluding absences)
   const totalHoursThisWeek = userWeekShifts.reduce((total, shift) => {
+    // Exclure les absences
+    if (shift.status === 'absence_justified' || shift.status === 'absence_unjustified') {
+      return total;
+    }
     const [sh, sm] = shift.startTime.split(':').map(Number);
     const [eh, em] = shift.endTime.split(':').map(Number);
     const hours = (eh * 60 + em - sh * 60 - sm) / 60;
     return total + (hours < 0 ? hours + 24 : hours);
   }, 0);
+
+  // Count absences this week
+  const absenceCount = userWeekShifts.filter(
+    (s) => s.status === 'absence_justified' || s.status === 'absence_unjustified'
+  ).length;
 
   // Active employees count
   const activeEmployees = employees.filter((e) => e.active && e.role === 'employee').length;
@@ -86,12 +95,12 @@ export default function Dashboard({ employees, shifts, currentUser }: DashboardP
 
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-3">
-                <div className="w-10 h-10 bg-rose-100 rounded-xl flex items-center justify-center">
-                  <i className="fas fa-clipboard-list text-rose-600"></i>
+                <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
+                  <i className="fas fa-user-times text-orange-600"></i>
                 </div>
               </div>
-              <p className="text-2xl font-bold text-gray-800">{todayShifts.length}</p>
-              <p className="text-sm text-gray-500">Shifts ce soir</p>
+              <p className="text-2xl font-bold text-gray-800">{absenceCount}</p>
+              <p className="text-sm text-gray-500">Absences cette semaine</p>
             </div>
           </>
         )}
@@ -108,19 +117,29 @@ export default function Dashboard({ employees, shifts, currentUser }: DashboardP
             <div className="space-y-3">
               {todayShifts.map((shift) => {
                 const employee = employees.find((e) => e.id === shift.employeeId);
+                const isAbsent = shift.status === 'absence_justified' || shift.status === 'absence_unjustified';
+                const isJustified = shift.status === 'absence_justified';
                 return (
-                  <div key={shift.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-                    <div className="w-9 h-9 bg-gradient-to-br from-purple-400 to-violet-500 rounded-full flex items-center justify-center text-white font-bold text-xs">
+                  <div key={shift.id} className={`flex items-center gap-3 p-3 rounded-xl ${
+                    isAbsent ? (isJustified ? 'bg-orange-50 border border-orange-200' : 'bg-red-50 border border-red-200') : 'bg-gray-50'
+                  }`}>
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs ${
+                      isAbsent ? (isJustified ? 'bg-gradient-to-br from-orange-400 to-amber-500' : 'bg-gradient-to-br from-red-400 to-rose-500') : 'bg-gradient-to-br from-purple-400 to-violet-500'
+                    }`}>
                       {employee?.firstName[0]}{employee?.lastName[0]}
                     </div>
                     <div className="flex-1">
                       <p className="font-medium text-gray-800 text-sm">
                         {employee?.firstName} {employee?.lastName}
                       </p>
-                      <p className="text-xs text-gray-500">{shift.role}</p>
+                      <p className={`text-xs ${isAbsent ? (isJustified ? 'text-orange-600' : 'text-red-600') : 'text-gray-500'}`}>
+                        {isAbsent ? (isJustified ? '⚕️ Absence justifiée' : '⚠️ Absence injustifiée') : shift.role}
+                      </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-semibold text-gray-700">{shift.startTime} - {shift.endTime}</p>
+                      <p className={`text-sm font-semibold ${isAbsent ? 'line-through opacity-50' : ''} text-gray-700`}>
+                        {shift.startTime} - {shift.endTime}
+                      </p>
                     </div>
                   </div>
                 );
