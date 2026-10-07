@@ -22,12 +22,12 @@ export default function Sidebar({ currentView, setCurrentView, currentUser, onLo
       {/* Logo */}
       <div className="p-6 border-b border-gray-700/50">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-lg flex items-center justify-center shadow-lg">
-            <i className="fas fa-hotel text-white"></i>
+          <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-violet-600 rounded-lg flex items-center justify-center shadow-lg">
+            <i className="fas fa-music text-white"></i>
           </div>
           <div>
-            <h1 className="text-white font-bold text-lg leading-tight">Hôtel</h1>
-            <p className="text-amber-400 text-xs font-medium">Restaurant & Spa</p>
+            <h1 className="text-white font-bold text-lg leading-tight">Night Club</h1>
+            <p className="text-purple-400 text-xs font-medium">Planning IDCC 1790</p>
           </div>
         </div>
       </div>
@@ -42,7 +42,7 @@ export default function Sidebar({ currentView, setCurrentView, currentUser, onLo
               onClick={() => setCurrentView(item.id)}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all ${
                 currentView === item.id
-                  ? 'bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-400 border border-amber-500/30 shadow-lg'
+                  ? 'bg-gradient-to-r from-purple-500/20 to-violet-500/20 text-purple-400 border border-purple-500/30 shadow-lg'
                   : 'text-gray-400 hover:text-white hover:bg-white/5'
               }`}
             >
@@ -55,7 +55,7 @@ export default function Sidebar({ currentView, setCurrentView, currentUser, onLo
       {/* User info */}
       <div className="p-4 border-t border-gray-700/50">
         <div className="flex items-center gap-3 mb-3 px-2">
-          <div className="w-9 h-9 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+          <div className="w-9 h-9 bg-gradient-to-br from-purple-400 to-violet-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
             {currentUser.firstName[0]}{currentUser.lastName[0]}
           </div>
           <div className="flex-1 min-w-0">
