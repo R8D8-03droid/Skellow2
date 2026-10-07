@@ -166,7 +166,7 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            <i className="fas fa-calendar-alt text-amber-500"></i>
+            <i className="fas fa-calendar-alt text-purple-500"></i>
             Planning hebdomadaire
           </h1>
           <p className="text-gray-500 text-sm mt-1">
@@ -192,7 +192,7 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
           <select
             value={selectedDepartment}
             onChange={(e) => setSelectedDepartment(e.target.value)}
-            className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-amber-500"
+            className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-purple-500"
           >
             <option value="all">Tous les départements</option>
             {departments.map((dept) => (
@@ -207,7 +207,7 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
           </button>
           <button
             onClick={() => setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}
-            className="px-3 py-2 text-sm font-medium text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+            className="px-3 py-2 text-sm font-medium text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
           >
             Aujourd'hui
           </button>
@@ -220,7 +220,7 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
           {isAdmin && (
             <button
               onClick={() => { setEditingShift(null); setShowAddModal(true); }}
-              className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-600 text-white text-sm font-medium rounded-xl shadow hover:shadow-lg transition-all"
+              className="px-4 py-2 bg-gradient-to-r from-purple-500 to-violet-600 text-white text-sm font-medium rounded-xl shadow hover:shadow-lg transition-all"
             >
               <i className="fas fa-plus mr-2"></i>Ajouter
             </button>
@@ -258,11 +258,11 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
                     <th
                       key={day.toISOString()}
                       className={`px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider min-w-[130px] ${
-                        isToday(day) ? 'bg-amber-50 text-amber-700' : 'text-gray-500'
+                        isToday(day) ? 'bg-purple-50 text-purple-700' : 'text-gray-500'
                       }`}
                     >
                       <div>{format(day, 'EEE', { locale: fr })}</div>
-                      <div className={`text-lg font-bold ${isToday(day) ? 'text-amber-600' : 'text-gray-800'}`}>
+                      <div className={`text-lg font-bold ${isToday(day) ? 'text-purple-600' : 'text-gray-800'}`}>
                         {format(day, 'd')}
                       </div>
                     </th>
@@ -290,7 +290,7 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
                     <tr key={employee.id} className="hover:bg-gray-50/50">
                       <td className="sticky left-0 bg-white z-10 px-4 py-3">
                         <div className="flex items-center gap-3 mb-2">
-                          <div className="w-8 h-8 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center text-white font-bold text-xs">
+                          <div className="w-8 h-8 bg-gradient-to-br from-purple-400 to-violet-500 rounded-full flex items-center justify-center text-white font-bold text-xs">
                             {employee.firstName[0]}{employee.lastName[0]}
                           </div>
                           <div>
@@ -338,7 +338,7 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
                               {isAdmin && (
                                 <button
                                   onClick={() => handleAddShiftToCell(employee.id, dateStr)}
-                                  className="w-full py-1 rounded-lg border border-dashed border-gray-200 text-gray-300 hover:border-amber-400 hover:text-amber-500 hover:bg-amber-50/50 transition-all text-xs flex items-center justify-center gap-1"
+                                  className="w-full py-1 rounded-lg border border-dashed border-gray-200 text-gray-300 hover:border-purple-400 hover:text-purple-500 hover:bg-purple-50/50 transition-all text-xs flex items-center justify-center gap-1"
                                   title="Ajouter un shift"
                                 >
                                   <i className="fas fa-plus text-[10px]"></i>
@@ -359,16 +359,16 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
         {/* Drag Overlay */}
         <DragOverlay>
           {activeId ? (
-            <div className="bg-gradient-to-r from-amber-100 to-orange-100 border-2 border-amber-400 rounded-lg px-3 py-2 shadow-xl opacity-90 cursor-grabbing">
+            <div className="bg-gradient-to-r from-purple-100 to-violet-100 border-2 border-purple-400 rounded-lg px-3 py-2 shadow-xl opacity-90 cursor-grabbing">
               {(() => {
                 const shift = shifts.find((s) => s.id === activeId);
                 if (!shift) return null;
                 return (
                   <div>
-                    <p className="font-semibold text-amber-800 text-sm">
+                    <p className="font-semibold text-purple-800 text-sm">
                       {shift.startTime} - {shift.endTime}
                     </p>
-                    <p className="text-amber-600 text-xs">{shift.role}</p>
+                    <p className="text-purple-600 text-xs">{shift.role}</p>
                     {copyMode && (
                       <p className="text-blue-600 text-[10px] font-bold mt-1">
                         <i className="fas fa-copy mr-1"></i>COPIE
@@ -410,7 +410,7 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
                 }}
                 className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
               >
-                <i className="fas fa-edit text-amber-500 w-4"></i>
+                <i className="fas fa-edit text-purple-500 w-4"></i>
                 Modifier
               </button>
               <button
@@ -495,7 +495,7 @@ function DroppableCell({ id, children, isToday }: { id: string; children: React.
     <td
       ref={setNodeRef}
       className={`px-2 py-2 text-center transition-colors ${
-        isToday ? 'bg-amber-50/30' : ''
+        isToday ? 'bg-purple-50/30' : ''
       } ${isOver ? 'bg-blue-50 ring-2 ring-inset ring-blue-300' : ''}`}
     >
       {children}
@@ -528,8 +528,8 @@ function DraggableShift({ shift, isAdmin, onClick, copyMode }: {
   return (
     <div
       ref={setNodeRef}
-      className={`group relative flex items-stretch bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg text-xs transition-all ${
-        isDragging ? 'opacity-30 scale-95' : 'hover:shadow-sm hover:border-amber-300'
+      className={`group relative flex items-stretch bg-gradient-to-r from-purple-50 to-violet-50 border border-purple-200 rounded-lg text-xs transition-all ${
+        isDragging ? 'opacity-30 scale-95' : 'hover:shadow-sm hover:border-purple-300'
       }`}
     >
       {/* Drag Handle (admin only) */}
@@ -537,10 +537,10 @@ function DraggableShift({ shift, isAdmin, onClick, copyMode }: {
         <div
           {...listeners}
           {...attributes}
-          className="flex items-center justify-center w-5 bg-amber-200/50 rounded-l-lg cursor-grab active:cursor-grabbing hover:bg-amber-300/70 transition-colors touch-none select-none"
+          className="flex items-center justify-center w-5 bg-purple-200/50 rounded-l-lg cursor-grab active:cursor-grabbing hover:bg-purple-300/70 transition-colors touch-none select-none"
           title="Glisser pour déplacer"
         >
-          <i className="fas fa-grip-vertical text-amber-600 text-[9px]"></i>
+          <i className="fas fa-grip-vertical text-purple-600 text-[9px]"></i>
         </div>
       )}
       
@@ -555,10 +555,10 @@ function DraggableShift({ shift, isAdmin, onClick, copyMode }: {
         }}
         className={`flex-1 px-2 py-1.5 cursor-pointer ${isAdmin ? 'rounded-r-lg' : 'rounded-lg'}`}
       >
-        <p className="font-semibold text-amber-800">
+        <p className="font-semibold text-purple-800">
           {shift.startTime} - {shift.endTime}
         </p>
-        <p className="text-amber-600 text-[10px]">{shift.role}</p>
+        <p className="text-purple-600 text-[10px]">{shift.role}</p>
       </div>
 
       {/* Action Button (admin only) */}
@@ -570,7 +570,7 @@ function DraggableShift({ shift, isAdmin, onClick, copyMode }: {
             onPointerUp={(e) => e.stopPropagation()}
             onClick={handleButtonClick}
             onMouseDown={(e) => e.stopPropagation()}
-            className="w-5 h-5 bg-amber-500 text-white rounded-full text-[9px] flex items-center justify-center hover:bg-amber-600 shadow-md z-20 relative"
+            className="w-5 h-5 bg-purple-500 text-white rounded-full text-[9px] flex items-center justify-center hover:bg-purple-600 shadow-md z-20 relative"
             title="Modifier / Supprimer"
           >
             <i className="fas fa-ellipsis-h text-[7px]"></i>
@@ -629,7 +629,7 @@ function ShiftModal({ shift, employees, onSave, onClose }: ShiftModalProps) {
             <select
               value={employeeId}
               onChange={(e) => setEmployeeId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500"
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500"
               required
             >
               {employees.map((emp) => (
@@ -645,7 +645,7 @@ function ShiftModal({ shift, employees, onSave, onClose }: ShiftModalProps) {
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500"
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500"
               required
             />
           </div>
@@ -656,7 +656,7 @@ function ShiftModal({ shift, employees, onSave, onClose }: ShiftModalProps) {
                 type="time"
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500"
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500"
                 required
               />
             </div>
@@ -666,7 +666,7 @@ function ShiftModal({ shift, employees, onSave, onClose }: ShiftModalProps) {
                 type="time"
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500"
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500"
                 required
               />
             </div>
@@ -677,8 +677,8 @@ function ShiftModal({ shift, employees, onSave, onClose }: ShiftModalProps) {
               type="text"
               value={role}
               onChange={(e) => setRole(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500"
-              placeholder="Ex: Chef de rang, Serveur..."
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500"
+              placeholder="Ex: Barman, Agent de sécurité..."
               required
             />
           </div>
@@ -688,8 +688,8 @@ function ShiftModal({ shift, employees, onSave, onClose }: ShiftModalProps) {
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500"
-              placeholder="Remplacement, formation..."
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500"
+              placeholder="Remplacement, soirée spéciale..."
             />
           </div>
           <div className="flex gap-3 pt-2">
@@ -702,7 +702,7 @@ function ShiftModal({ shift, employees, onSave, onClose }: ShiftModalProps) {
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-xl hover:shadow-lg transition-all font-medium"
+              className="flex-1 px-4 py-2.5 bg-gradient-to-r from-purple-500 to-violet-600 text-white rounded-xl hover:shadow-lg transition-all font-medium"
             >
               Enregistrer
             </button>

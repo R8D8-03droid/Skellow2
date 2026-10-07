@@ -52,8 +52,8 @@ export default function Dashboard({ employees, shifts, currentUser }: DashboardP
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-3">
-            <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
-              <i className="fas fa-clock text-amber-600"></i>
+            <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+              <i className="fas fa-clock text-purple-600"></i>
             </div>
             <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">Cette semaine</span>
           </div>
@@ -64,20 +64,20 @@ export default function Dashboard({ employees, shifts, currentUser }: DashboardP
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-3">
             <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-              <i className="fas fa-calendar-check text-blue-600"></i>
+              <i className="fas fa-moon text-blue-600"></i>
             </div>
             <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">Semaine</span>
           </div>
           <p className="text-2xl font-bold text-gray-800">{userWeekShifts.length}</p>
-          <p className="text-sm text-gray-500">Shifts planifiés</p>
+          <p className="text-sm text-gray-500">Shifts de nuit</p>
         </div>
 
         {isAdmin && (
           <>
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-3">
-                <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
-                  <i className="fas fa-users text-purple-600"></i>
+                <div className="w-10 h-10 bg-violet-100 rounded-xl flex items-center justify-center">
+                  <i className="fas fa-users text-violet-600"></i>
                 </div>
               </div>
               <p className="text-2xl font-bold text-gray-800">{activeEmployees}</p>
@@ -91,7 +91,7 @@ export default function Dashboard({ employees, shifts, currentUser }: DashboardP
                 </div>
               </div>
               <p className="text-2xl font-bold text-gray-800">{todayShifts.length}</p>
-              <p className="text-sm text-gray-500">Shifts aujourd'hui</p>
+              <p className="text-sm text-gray-500">Shifts ce soir</p>
             </div>
           </>
         )}
@@ -101,8 +101,8 @@ export default function Dashboard({ employees, shifts, currentUser }: DashboardP
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
           <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <i className="fas fa-sun text-amber-500"></i>
-            Planning du jour
+            <i className="fas fa-moon text-purple-500"></i>
+            Planning du soir
           </h2>
           {todayShifts.length > 0 ? (
             <div className="space-y-3">
@@ -110,7 +110,7 @@ export default function Dashboard({ employees, shifts, currentUser }: DashboardP
                 const employee = employees.find((e) => e.id === shift.employeeId);
                 return (
                   <div key={shift.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-                    <div className="w-9 h-9 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center text-white font-bold text-xs">
+                    <div className="w-9 h-9 bg-gradient-to-br from-purple-400 to-violet-500 rounded-full flex items-center justify-center text-white font-bold text-xs">
                       {employee?.firstName[0]}{employee?.lastName[0]}
                     </div>
                     <div className="flex-1">
@@ -127,14 +127,14 @@ export default function Dashboard({ employees, shifts, currentUser }: DashboardP
               })}
             </div>
           ) : (
-            <p className="text-gray-400 text-center py-8">Aucun shift aujourd'hui</p>
+            <p className="text-gray-400 text-center py-8">Aucun shift ce soir</p>
           )}
         </div>
 
         {/* My upcoming shifts */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
           <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <i className="fas fa-calendar-week text-blue-500"></i>
+            <i className="fas fa-calendar-week text-purple-500"></i>
             Mes prochains shifts
           </h2>
           <div className="space-y-3">
@@ -149,11 +149,11 @@ export default function Dashboard({ employees, shifts, currentUser }: DashboardP
                 <div
                   key={i}
                   className={`flex items-center gap-3 p-3 rounded-xl ${
-                    isToday(date) ? 'bg-amber-50 border border-amber-200' : 'bg-gray-50'
+                    isToday(date) ? 'bg-purple-50 border border-purple-200' : 'bg-gray-50'
                   }`}
                 >
                   <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center ${
-                    isToday(date) ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-600'
+                    isToday(date) ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-600'
                   }`}>
                     <span className="text-[10px] font-medium uppercase">{format(date, 'EEE', { locale: fr })}</span>
                     <span className="text-sm font-bold">{format(date, 'd')}</span>
@@ -187,10 +187,13 @@ export default function Dashboard({ employees, shifts, currentUser }: DashboardP
             {departments.map((dept) => {
               const count = employees.filter((e) => e.department === dept && e.active && e.role === 'employee').length;
               const colors: Record<string, string> = {
-                'Salle': 'from-amber-400 to-orange-500',
-                'Cuisine': 'from-red-400 to-rose-500',
-                'Réception': 'from-blue-400 to-indigo-500',
-                'Direction': 'from-purple-400 to-violet-500',
+                'Bar': 'from-blue-400 to-cyan-500',
+                'Sécurité': 'from-red-400 to-rose-500',
+                'Accueil/Caisse': 'from-green-400 to-emerald-500',
+                'Vestiaire': 'from-yellow-400 to-amber-500',
+                'DJ/Animation': 'from-purple-400 to-violet-500',
+                'Direction': 'from-indigo-400 to-blue-500',
+                'Ménage/Entretien': 'from-gray-400 to-slate-500',
               };
               return (
                 <div key={dept} className="text-center p-4 bg-gray-50 rounded-xl">

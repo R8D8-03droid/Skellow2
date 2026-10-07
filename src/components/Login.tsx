@@ -32,11 +32,11 @@ export default function Login({ employees, onLogin }: LoginProps) {
       
       <div className="relative bg-white/80 backdrop-blur-xl rounded-2xl shadow-2xl p-8 w-full max-w-md border border-white/50">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl shadow-lg mb-4">
-            <i className="fas fa-hotel text-white text-2xl"></i>
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500 to-violet-600 rounded-xl shadow-lg mb-4">
+            <i className="fas fa-music text-white text-2xl"></i>
           </div>
-          <h1 className="text-2xl font-bold text-gray-800">Hôtel Restaurant</h1>
-          <p className="text-gray-500 mt-1">Gestion du planning & paie</p>
+          <h1 className="text-2xl font-bold text-gray-800">Night Club</h1>
+          <p className="text-gray-500 mt-1">Planning & Paie - Convention IDCC 1790</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -88,8 +88,8 @@ export default function Login({ employees, onLogin }: LoginProps) {
         <div className="mt-6 p-4 bg-gray-50 rounded-xl">
           <p className="text-xs text-gray-500 font-medium mb-2">Comptes de démonstration :</p>
           <div className="space-y-1 text-xs text-gray-600">
-            <p><span className="font-medium">Admin :</span> admin@hotel.fr / admin123</p>
-            <p><span className="font-medium">Employé :</span> jean.martin@hotel.fr / jean123</p>
+            <p><span className="font-medium">Admin :</span> admin@nightclub.fr / admin123</p>
+            <p><span className="font-medium">Employé :</span> dj.max@nightclub.fr / max123</p>
           </div>
         </div>
       </div>
