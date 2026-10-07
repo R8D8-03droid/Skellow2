@@ -82,14 +82,54 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
   };
 
   const handleSaveShift = (shift: Shift) => {
-    const existing = shifts.findIndex((s) => s.id === shift.id);
-    if (existing >= 0) {
-      const updated = [...shifts];
-      updated[existing] = shift;
-      onUpdateShifts(updated);
+    // Détecter si le shift traverse minuit
+    const [startH, startM] = shift.startTime.split(':').map(Number);
+    const [endH, endM] = shift.endTime.split(':').map(Number);
+    const startMinutes = startH * 60 + startM;
+    const endMinutes = endH * 60 + endM;
+    
+    const crossesMidnight = endMinutes < startMinutes;
+    
+    if (crossesMidnight) {
+      // Diviser en deux shifts
+      const firstShift: Shift = {
+        ...shift,
+        id: shift.id || `shift-${Date.now()}-1`,
+        endTime: '23:59',
+      };
+      
+      // Calculer la date du lendemain
+      const [year, month, day] = shift.date.split('-').map(Number);
+      const nextDay = new Date(year, month - 1, day + 1);
+      const nextDayStr = format(nextDay, 'yyyy-MM-dd');
+      
+      const secondShift: Shift = {
+        ...shift,
+        id: `shift-${Date.now()}-2`,
+        date: nextDayStr,
+        startTime: '00:00',
+      };
+      
+      // Supprimer l'ancien shift s'il existe (pour les modifications)
+      let updatedShifts = shifts;
+      if (shift.id) {
+        updatedShifts = shifts.filter((s) => s.id !== shift.id);
+      }
+      
+      // Ajouter les deux nouveaux shifts
+      onUpdateShifts([...updatedShifts, firstShift, secondShift]);
     } else {
-      onUpdateShifts([...shifts, shift]);
+      // Shift normal (ne traverse pas minuit)
+      const existing = shifts.findIndex((s) => s.id === shift.id);
+      if (existing >= 0) {
+        const updated = [...shifts];
+        updated[existing] = shift;
+        onUpdateShifts(updated);
+      } else {
+        onUpdateShifts([...shifts, shift]);
+      }
     }
+    
     setShowAddModal(false);
     setEditingShift(null);
   };
@@ -780,6 +820,27 @@ function ShiftModal({ shift, employees, onSave, onClose }: ShiftModalProps) {
               />
             </div>
           </div>
+          {(() => {
+            const [sh, sm] = startTime.split(':').map(Number);
+            const [eh, em] = endTime.split(':').map(Number);
+            const crossesMidnight = (eh * 60 + em) < (sh * 60 + sm);
+            if (crossesMidnight) {
+              return (
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm text-purple-700 flex items-start gap-2">
+                  <i className="fas fa-info-circle mt-0.5"></i>
+                  <div>
+                    <p className="font-medium">Shift de nuit détecté</p>
+                    <p className="text-xs mt-1">Ce shift sera automatiquement divisé en deux :</p>
+                    <ul className="text-xs mt-1 ml-4 list-disc">
+                      <li>{startTime} - 23:59 (jour sélectionné)</li>
+                      <li>00:00 - {endTime} (jour suivant)</li>
+                    </ul>
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Poste</label>
             <input
