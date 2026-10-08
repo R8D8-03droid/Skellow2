@@ -31,6 +31,7 @@ export interface Shift {
   role: string;
   notes?: string;
   isNightShift?: boolean; // Travail de nuit (21h-6h)
+  status?: 'scheduled' | 'present' | 'absence_justified' | 'absence_unjustified';
 }
 
 export interface PaySlip {

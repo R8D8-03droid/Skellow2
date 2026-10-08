@@ -35,6 +35,11 @@ export default function PaySlipGenerator({ employees, shifts }: PaySlipGenerator
       const dateStr = format(day, 'yyyy-MM-dd');
       const dayShifts = shifts.filter((s) => s.employeeId === employeeId && s.date === dateStr);
       dayShifts.forEach((shift) => {
+        // Exclure les absences du calcul des heures
+        if (shift.status === 'absence_justified' || shift.status === 'absence_unjustified') {
+          return;
+        }
+        
         const [sh, sm] = shift.startTime.split(':').map(Number);
         const [eh, em] = shift.endTime.split(':').map(Number);
         let minutes = eh * 60 + em - sh * 60 - sm;

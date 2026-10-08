@@ -58,6 +58,14 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
     return minutes < 0 ? (minutes + 24 * 60) / 60 : minutes / 60;
   };
 
+  const handleUpdateShiftStatus = (shiftId: string, status: Shift['status']) => {
+    const updated = shifts.map((s) =>
+      s.id === shiftId ? { ...s, status } : s
+    );
+    onUpdateShifts(updated);
+    setContextMenu(null);
+  };
+
   const handleDeleteShift = (shiftId: string) => {
     onUpdateShifts(shifts.filter((s) => s.id !== shiftId));
     setContextMenu(null);
@@ -74,14 +82,54 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
   };
 
   const handleSaveShift = (shift: Shift) => {
-    const existing = shifts.findIndex((s) => s.id === shift.id);
-    if (existing >= 0) {
-      const updated = [...shifts];
-      updated[existing] = shift;
-      onUpdateShifts(updated);
+    // Détecter si le shift traverse minuit
+    const [startH, startM] = shift.startTime.split(':').map(Number);
+    const [endH, endM] = shift.endTime.split(':').map(Number);
+    const startMinutes = startH * 60 + startM;
+    const endMinutes = endH * 60 + endM;
+    
+    const crossesMidnight = endMinutes < startMinutes;
+    
+    if (crossesMidnight) {
+      // Diviser en deux shifts
+      const firstShift: Shift = {
+        ...shift,
+        id: shift.id || `shift-${Date.now()}-1`,
+        endTime: '23:59',
+      };
+      
+      // Calculer la date du lendemain
+      const [year, month, day] = shift.date.split('-').map(Number);
+      const nextDay = new Date(year, month - 1, day + 1);
+      const nextDayStr = format(nextDay, 'yyyy-MM-dd');
+      
+      const secondShift: Shift = {
+        ...shift,
+        id: `shift-${Date.now()}-2`,
+        date: nextDayStr,
+        startTime: '00:00',
+      };
+      
+      // Supprimer l'ancien shift s'il existe (pour les modifications)
+      let updatedShifts = shifts;
+      if (shift.id) {
+        updatedShifts = shifts.filter((s) => s.id !== shift.id);
+      }
+      
+      // Ajouter les deux nouveaux shifts
+      onUpdateShifts([...updatedShifts, firstShift, secondShift]);
     } else {
-      onUpdateShifts([...shifts, shift]);
+      // Shift normal (ne traverse pas minuit)
+      const existing = shifts.findIndex((s) => s.id === shift.id);
+      if (existing >= 0) {
+        const updated = [...shifts];
+        updated[existing] = shift;
+        onUpdateShifts(updated);
+      } else {
+        onUpdateShifts([...shifts, shift]);
+      }
     }
+    
     setShowAddModal(false);
     setEditingShift(null);
   };
@@ -271,13 +319,19 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filteredEmployees.map((employee) => {
-                  // Calcul du total hebdomadaire
+                  // Calcul du total hebdomadaire (exclut les absences)
                   let weekTotal = 0;
+                  let absenceCount = 0;
                   days.forEach((day) => {
                     const dateStr = format(day, 'yyyy-MM-dd');
                     const dayShifts = getShiftsForDay(employee.id, dateStr);
                     dayShifts.forEach((s) => {
-                      weekTotal += calculateHours(s.startTime, s.endTime);
+                      // Ne compter que les shifts présents ou programmés
+                      if (s.status !== 'absence_justified' && s.status !== 'absence_unjustified') {
+                        weekTotal += calculateHours(s.startTime, s.endTime);
+                      } else {
+                        absenceCount++;
+                      }
                     });
                   });
 
@@ -316,6 +370,11 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
                           }`}>
                             {isPositive ? '+' : isNegative ? '' : ''}{difference.toFixed(1)}h
                           </span>
+                          {absenceCount > 0 && (
+                            <span className="inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">
+                              {absenceCount} abs.
+                            </span>
+                          )}
                         </div>
                       </td>
                       {days.map((day) => {
@@ -431,6 +490,52 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
                 Dupliquer
               </button>
               <div className="border-t border-gray-100 my-1"></div>
+              <p className="px-4 py-1 text-[10px] font-semibold text-gray-400 uppercase">Statut</p>
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => handleUpdateShiftStatus(contextMenu.shift.id, 'scheduled')}
+                className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 ${
+                  contextMenu.shift.status === 'scheduled' || !contextMenu.shift.status ? 'text-purple-600 font-medium' : 'text-gray-700'
+                }`}
+              >
+                <i className="fas fa-calendar-check text-purple-500 w-4"></i>
+                Programmé
+              </button>
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => handleUpdateShiftStatus(contextMenu.shift.id, 'present')}
+                className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 ${
+                  contextMenu.shift.status === 'present' ? 'text-green-600 font-medium' : 'text-gray-700'
+                }`}
+              >
+                <i className="fas fa-user-check text-green-500 w-4"></i>
+                Présent
+              </button>
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => handleUpdateShiftStatus(contextMenu.shift.id, 'absence_justified')}
+                className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 ${
+                  contextMenu.shift.status === 'absence_justified' ? 'text-orange-600 font-medium' : 'text-gray-700'
+                }`}
+              >
+                <i className="fas fa-file-medical text-orange-500 w-4"></i>
+                Absence justifiée
+              </button>
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => handleUpdateShiftStatus(contextMenu.shift.id, 'absence_unjustified')}
+                className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 ${
+                  contextMenu.shift.status === 'absence_unjustified' ? 'text-red-600 font-medium' : 'text-gray-700'
+                }`}
+              >
+                <i className="fas fa-exclamation-triangle text-red-500 w-4"></i>
+                Absence injustifiée
+              </button>
+              <div className="border-t border-gray-100 my-1"></div>
               <button
                 type="button"
                 onPointerDown={(e) => e.stopPropagation()}
@@ -525,11 +630,52 @@ function DraggableShift({ shift, isAdmin, onClick, copyMode }: {
     e.stopPropagation();
   };
 
+  // Déterminer les styles selon le statut
+  const getStatusStyles = () => {
+    switch (shift.status) {
+      case 'absence_justified':
+        return {
+          bg: 'bg-gradient-to-r from-orange-50 to-amber-50',
+          border: 'border-orange-200',
+          text: 'text-orange-800',
+          subtext: 'text-orange-600',
+          handle: 'bg-orange-200/50 hover:bg-orange-300/70',
+          handleIcon: 'text-orange-600',
+          icon: 'fas fa-file-medical',
+          label: 'Abs. justifiée'
+        };
+      case 'absence_unjustified':
+        return {
+          bg: 'bg-gradient-to-r from-red-50 to-rose-50',
+          border: 'border-red-200',
+          text: 'text-red-800',
+          subtext: 'text-red-600',
+          handle: 'bg-red-200/50 hover:bg-red-300/70',
+          handleIcon: 'text-red-600',
+          icon: 'fas fa-exclamation-triangle',
+          label: 'Abs. injustifiée'
+        };
+      default:
+        return {
+          bg: 'bg-gradient-to-r from-purple-50 to-violet-50',
+          border: 'border-purple-200',
+          text: 'text-purple-800',
+          subtext: 'text-purple-600',
+          handle: 'bg-purple-200/50 hover:bg-purple-300/70',
+          handleIcon: 'text-purple-600',
+          icon: null,
+          label: null
+        };
+    }
+  };
+
+  const styles = getStatusStyles();
+
   return (
     <div
       ref={setNodeRef}
-      className={`group relative flex items-stretch bg-gradient-to-r from-purple-50 to-violet-50 border border-purple-200 rounded-lg text-xs transition-all ${
-        isDragging ? 'opacity-30 scale-95' : 'hover:shadow-sm hover:border-purple-300'
+      className={`group relative flex items-stretch ${styles.bg} border ${styles.border} rounded-lg text-xs transition-all ${
+        isDragging ? 'opacity-30 scale-95' : 'hover:shadow-sm'
       }`}
     >
       {/* Drag Handle (admin only) */}
@@ -537,10 +683,10 @@ function DraggableShift({ shift, isAdmin, onClick, copyMode }: {
         <div
           {...listeners}
           {...attributes}
-          className="flex items-center justify-center w-5 bg-purple-200/50 rounded-l-lg cursor-grab active:cursor-grabbing hover:bg-purple-300/70 transition-colors touch-none select-none"
+          className={`flex items-center justify-center w-5 ${styles.handle} rounded-l-lg cursor-grab active:cursor-grabbing transition-colors touch-none select-none`}
           title="Glisser pour déplacer"
         >
-          <i className="fas fa-grip-vertical text-purple-600 text-[9px]"></i>
+          <i className={`fas fa-grip-vertical ${styles.handleIcon} text-[9px]`}></i>
         </div>
       )}
       
@@ -555,10 +701,13 @@ function DraggableShift({ shift, isAdmin, onClick, copyMode }: {
         }}
         className={`flex-1 px-2 py-1.5 cursor-pointer ${isAdmin ? 'rounded-r-lg' : 'rounded-lg'}`}
       >
-        <p className="font-semibold text-purple-800">
+        <p className={`font-semibold ${styles.text}`}>
           {shift.startTime} - {shift.endTime}
         </p>
-        <p className="text-purple-600 text-[10px]">{shift.role}</p>
+        <p className={`${styles.subtext} text-[10px] flex items-center gap-1`}>
+          {styles.icon && <i className={`${styles.icon} text-[8px]`}></i>}
+          {styles.label || shift.role}
+        </p>
       </div>
 
       {/* Action Button (admin only) */}
@@ -671,6 +820,27 @@ function ShiftModal({ shift, employees, onSave, onClose }: ShiftModalProps) {
               />
             </div>
           </div>
+          {(() => {
+            const [sh, sm] = startTime.split(':').map(Number);
+            const [eh, em] = endTime.split(':').map(Number);
+            const crossesMidnight = (eh * 60 + em) < (sh * 60 + sm);
+            if (crossesMidnight) {
+              return (
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm text-purple-700 flex items-start gap-2">
+                  <i className="fas fa-info-circle mt-0.5"></i>
+                  <div>
+                    <p className="font-medium">Shift de nuit détecté</p>
+                    <p className="text-xs mt-1">Ce shift sera automatiquement divisé en deux :</p>
+                    <ul className="text-xs mt-1 ml-4 list-disc">
+                      <li>{startTime} - 23:59 (jour sélectionné)</li>
+                      <li>00:00 - {endTime} (jour suivant)</li>
+                    </ul>
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Poste</label>
             <input
