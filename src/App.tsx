@@ -16,15 +16,27 @@ function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    setEmployees(loadEmployees());
-    setShifts(loadShifts());
+    const loadedEmployees = loadEmployees();
+    const loadedShifts = loadShifts();
+    setEmployees(loadedEmployees);
+    setShifts(loadedShifts);
 
     // Check for saved session
     const savedUser = localStorage.getItem('hotel_current_user');
     if (savedUser) {
       try {
         const user = JSON.parse(savedUser);
-        setCurrentUser(user);
+        
+        // Vérifier si l'utilisateur sauvegardé existe dans la liste actuelle
+        const userExists = loadedEmployees.some(emp => emp.id === user.id);
+        
+        if (userExists) {
+          setCurrentUser(user);
+        } else {
+          // Utilisateur obsolète, déconnecter
+          console.log('Session utilisateur obsolète, déconnexion...');
+          localStorage.removeItem('hotel_current_user');
+        }
       } catch {
         localStorage.removeItem('hotel_current_user');
       }
