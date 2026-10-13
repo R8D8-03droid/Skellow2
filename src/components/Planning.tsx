@@ -32,7 +32,7 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
   const [contextMenu, setContextMenu] = useState<{ shift: Shift; x: number; y: number; confirmDelete?: boolean } | null>(null);
 
   const days = Array.from({ length: 7 }).map((_, i) => addDays(currentWeekStart, i));
-  const activeEmployees = employees.filter((e) => e.active && e.role === 'employee');
+  const activeEmployees = employees.filter((e) => e.active);
   const departments = [...new Set(activeEmployees.map((e) => e.department))];
 
   const filteredEmployees = selectedDepartment === 'all'
@@ -344,12 +344,21 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
                     <tr key={employee.id} className="hover:bg-gray-50/50">
                       <td className="sticky left-0 bg-white z-10 px-4 py-3">
                         <div className="flex items-center gap-3 mb-2">
-                          <div className="w-8 h-8 bg-gradient-to-br from-purple-400 to-violet-500 rounded-full flex items-center justify-center text-white font-bold text-xs">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs ${
+                            employee.role === 'admin' 
+                              ? 'bg-gradient-to-br from-amber-400 to-orange-500' 
+                              : 'bg-gradient-to-br from-purple-400 to-violet-500'
+                          }`}>
                             {employee.firstName[0]}{employee.lastName[0]}
                           </div>
                           <div>
-                            <p className="font-medium text-gray-800 text-sm">
+                            <p className="font-medium text-gray-800 text-sm flex items-center gap-1.5">
                               {employee.firstName} {employee.lastName}
+                              {employee.role === 'admin' && (
+                                <span className="text-[9px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full font-semibold">
+                                  <i className="fas fa-crown mr-0.5"></i>Admin
+                                </span>
+                              )}
                             </p>
                             <p className="text-xs text-gray-400">{employee.department}</p>
                           </div>

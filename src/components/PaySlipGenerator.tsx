@@ -20,7 +20,7 @@ export default function PaySlipGenerator({ employees, shifts }: PaySlipGenerator
   const [generatedSlips, setGeneratedSlips] = useState<GeneratedPaySlip[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
 
-  const activeEmployees = employees.filter((e) => e.active && e.role === 'employee');
+  const activeEmployees = employees.filter((e) => e.active);
 
   const calculateMonthlyHours = (employeeId: string, month: number, year: number) => {
     const monthStart = startOfMonth(new Date(year, month - 1));
