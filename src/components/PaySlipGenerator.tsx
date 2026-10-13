@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { Employee, Shift, PaySlip } from '../types';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDaysInMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 import { IDCC_1790_RULES, calculateOvertime, calculateNightHours } from '../idcc1790';
 
 interface PaySlipGeneratorProps {
@@ -130,129 +129,328 @@ export default function PaySlipGenerator({ employees, shifts }: PaySlipGenerator
     setGeneratedSlips(slips);
   };
 
-  const generatePDF = (slip: GeneratedPaySlip) => {
-    const doc = new jsPDF();
-    const { employee } = slip;
-
-    // Header
-    doc.setFontSize(18);
-    doc.setTextColor(139, 92, 246); // Violet
-    doc.text('NIGHT CLUB', 105, 20, { align: 'center' });
-    doc.setFontSize(10);
-    doc.setTextColor(100, 100, 100);
-    doc.text('Convention Collective IDCC 1790', 105, 28, { align: 'center' });
-    doc.text('Espaces de loisirs, d\'attractions et culturels', 105, 34, { align: 'center' });
-
-    // Line
-    doc.setDrawColor(139, 92, 246);
-    doc.setLineWidth(0.5);
-    doc.line(20, 40, 190, 40);
-
-    // Title
-    doc.setFontSize(14);
-    doc.setTextColor(0, 0, 0);
-    doc.text('BULLETIN DE PAIE', 105, 50, { align: 'center' });
+  const generateExcel = (slips: GeneratedPaySlip[]) => {
+    console.log('Génération Excel - Début, nombre de bulletins:', slips.length);
     
-    const monthName = format(new Date(slip.year, slip.month - 1), 'MMMM yyyy', { locale: fr });
-    doc.setFontSize(11);
-    doc.text(`Période : ${monthName}`, 105, 58, { align: 'center' });
+    // Créer un workbook
+    const wb = XLSX.utils.book_new();
+    console.log('Workbook créé');
 
-    // Employee info
-    doc.setFontSize(9);
-    doc.setTextColor(60, 60, 60);
-    const leftX = 20;
-    let y = 72;
-    
-    doc.setFont('helvetica', 'bold');
-    doc.text('SALARIÉ(E)', leftX, y);
-    doc.setFont('helvetica', 'normal');
-    y += 6;
-    doc.text(`Nom : ${employee.lastName} ${employee.firstName}`, leftX, y); y += 5;
-    doc.text(`Adresse : ${employee.address}, ${employee.postalCode} ${employee.city}`, leftX, y); y += 5;
-    doc.text(`N° SS : ${employee.socialSecurityNumber}`, leftX, y); y += 5;
-    doc.text(`Emploi : ${employee.position}`, leftX, y); y += 5;
-    doc.text(`Contrat : ${employee.contractType}`, leftX, y); y += 5;
-    doc.text(`Dept : ${employee.department}`, leftX, y); y += 5;
-    doc.text(`Date d'entrée : ${format(new Date(employee.startDate), 'dd/MM/yyyy')}`, leftX, y);
+    // Feuille 1: Résumé global
+    const summaryData = [
+      ['BULLETINS DE PAIE - NIGHT CLUB'],
+      ['Convention Collective IDCC 1790 - Espaces de loisirs, d\'attractions et culturels'],
+      [],
+      ['Période', format(new Date(selectedYear, selectedMonth - 1), 'MMMM yyyy', { locale: fr })],
+      ['Date d\'export', format(new Date(), 'dd/MM/yyyy HH:mm')],
+      [],
+      ['RÉCAPITULATIF GLOBAL'],
+      ['Nombre de bulletins', slips.length],
+      ['Masse salariale brute', `${slips.reduce((sum, s) => sum + s.grossSalary, 0).toFixed(2)} €`],
+      ['Total charges salariales', `${slips.reduce((sum, s) => sum + s.socialCharges, 0).toFixed(2)} €`],
+      ['Masse salariale nette', `${slips.reduce((sum, s) => sum + s.netSalary, 0).toFixed(2)} €`],
+    ];
 
-    // Right side info
-    const rightX = 120;
-    y = 72;
-    doc.setFont('helvetica', 'bold');
-    doc.text('PÉRIODE', rightX, y);
-    doc.setFont('helvetica', 'normal');
-    y += 6;
-    const daysInMonth = getDaysInMonth(new Date(slip.year, slip.month - 1));
-    doc.text(`Du 01/${String(slip.month).padStart(2, '0')}/${slip.year}`, rightX, y); y += 5;
-    doc.text(`au ${daysInMonth}/${String(slip.month).padStart(2, '0')}/${slip.year}`, rightX, y); y += 10;
+    const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Résumé');
 
-    doc.setFont('helvetica', 'bold');
-    doc.text('CONTRAT', rightX, y);
-    doc.setFont('helvetica', 'normal');
-    y += 6;
-    doc.text(`Type : ${employee.contractType}`, rightX, y); y += 5;
-    doc.text(`Durée légale : 35h/semaine`, rightX, y); y += 5;
-    doc.text(`Heures mensuelles : ${employee.monthlyHours.toFixed(2)}h`, rightX, y);
+    // Feuille 2: Détail par employé (format compatible import comptable)
+    const detailData = [
+      ['DÉTAIL DES BULLETINS DE PAIE'],
+      ['Période', format(new Date(selectedYear, selectedMonth - 1), 'MMMM yyyy', { locale: fr })],
+      [],
+      [
+        'Nom',
+        'Prénom',
+        'N° Sécurité Sociale',
+        'Poste',
+        'Département',
+        'Type contrat',
+        'Date embauche',
+        'Heures totales',
+        'Heures normales',
+        'Taux horaire base (€)',
+        'Salaire base (€)',
+        'Heures sup. 25%',
+        'Montant HS 25% (€)',
+        'Heures sup. 50%',
+        'Montant HS 50% (€)',
+        'Heures de nuit',
+        'Prime nuit (€)',
+        'Salaire brut (€)',
+        'Charges salariales (€)',
+        'Salaire net (€)',
+      ]
+    ];
 
-    // Pay table
-    y = 130;
-    autoTable(doc, {
-      startY: y,
-      head: [['', 'Base', 'Taux horaire', 'Montant']],
-      body: [
-        ['Heures normales', `${slip.regularHours.toFixed(2)} h`, `${employee.hourlyRate.toFixed(2)} €`, `${slip.baseSalary.toFixed(2)} €`],
-        ...(slip.overtime25Hours > 0 ? [['Heures sup. 25% (36-43h)', `${slip.overtime25Hours.toFixed(2)} h`, `${(employee.hourlyRate * 1.25).toFixed(2)} €`, `${slip.overtime25Pay.toFixed(2)} €`]] : []),
-        ...(slip.overtime50Hours > 0 ? [['Heures sup. 50% (44h+)', `${slip.overtime50Hours.toFixed(2)} h`, `${(employee.hourlyRate * 1.50).toFixed(2)} €`, `${slip.overtime50Pay.toFixed(2)} €`]] : []),
-        ...(slip.nightHours > 0 ? [['Prime de nuit', `${slip.nightHours.toFixed(2)} h`, `${IDCC_1790_RULES.nightWorkBonus.toFixed(2)} €/h`, `${slip.nightBonus.toFixed(2)} €`]] : []),
-      ],
-      theme: 'grid',
-      headStyles: {
-        fillColor: [139, 92, 246],
-        textColor: [255, 255, 255],
-        fontSize: 9,
-      },
-      bodyStyles: {
-        fontSize: 9,
-      },
-      margin: { left: 20, right: 20 },
+    slips.forEach(slip => {
+      detailData.push([
+        slip.employee.lastName,
+        slip.employee.firstName,
+        slip.employee.socialSecurityNumber,
+        slip.employee.position,
+        slip.employee.department,
+        slip.employee.contractType,
+        format(new Date(slip.employee.startDate), 'dd/MM/yyyy'),
+        slip.totalHours.toFixed(2),
+        slip.regularHours.toFixed(2),
+        slip.employee.hourlyRate.toFixed(2),
+        slip.baseSalary.toFixed(2),
+        slip.overtime25Hours.toFixed(2),
+        slip.overtime25Pay.toFixed(2),
+        slip.overtime50Hours.toFixed(2),
+        slip.overtime50Pay.toFixed(2),
+        slip.nightHours.toFixed(2),
+        slip.nightBonus.toFixed(2),
+        slip.grossSalary.toFixed(2),
+        slip.socialCharges.toFixed(2),
+        slip.netSalary.toFixed(2),
+      ]);
     });
 
-    // Totals
-    const finalY = (doc as any).lastAutoTable.finalY + 10;
-    
-    doc.setDrawColor(200, 200, 200);
-    doc.line(120, finalY, 190, finalY);
-    
-    doc.setFontSize(9);
-    doc.text('SALAIRE BRUT', 120, finalY + 6);
-    doc.text(`${slip.grossSalary.toFixed(2)} €`, 175, finalY + 6, { align: 'right' });
-    
-    doc.text('Charges salariales (22%)', 120, finalY + 13);
-    doc.text(`- ${slip.socialCharges.toFixed(2)} €`, 175, finalY + 13, { align: 'right' });
-    
-    doc.setDrawColor(139, 92, 246);
-    doc.setLineWidth(0.5);
-    doc.line(120, finalY + 18, 190, finalY + 18);
-    
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(139, 92, 246);
-    doc.text('NET À PAYER', 120, finalY + 26);
-    doc.text(`${slip.netSalary.toFixed(2)} €`, 175, finalY + 26, { align: 'right' });
+    // Ligne de totaux
+    detailData.push([]);
+    detailData.push([
+      'TOTAUX',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      slips.reduce((sum, s) => sum + s.totalHours, 0).toFixed(2),
+      slips.reduce((sum, s) => sum + s.regularHours, 0).toFixed(2),
+      '',
+      slips.reduce((sum, s) => sum + s.baseSalary, 0).toFixed(2),
+      slips.reduce((sum, s) => sum + s.overtime25Hours, 0).toFixed(2),
+      slips.reduce((sum, s) => sum + s.overtime25Pay, 0).toFixed(2),
+      slips.reduce((sum, s) => sum + s.overtime50Hours, 0).toFixed(2),
+      slips.reduce((sum, s) => sum + s.overtime50Pay, 0).toFixed(2),
+      slips.reduce((sum, s) => sum + s.nightHours, 0).toFixed(2),
+      slips.reduce((sum, s) => sum + s.nightBonus, 0).toFixed(2),
+      slips.reduce((sum, s) => sum + s.grossSalary, 0).toFixed(2),
+      slips.reduce((sum, s) => sum + s.socialCharges, 0).toFixed(2),
+      slips.reduce((sum, s) => sum + s.netSalary, 0).toFixed(2),
+    ]);
 
-    // Footer
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Bulletin généré le ${format(new Date(), 'dd/MM/yyyy à HH:mm')}`, 105, 280, { align: 'center' });
-    doc.text('Convention Collective IDCC 1790 - Espaces de loisirs', 105, 285, { align: 'center' });
+    const wsDetail = XLSX.utils.aoa_to_sheet(detailData);
+    
+    // Ajuster la largeur des colonnes
+    wsDetail['!cols'] = [
+      { wch: 15 }, // Nom
+      { wch: 15 }, // Prénom
+      { wch: 20 }, // N° SS
+      { wch: 20 }, // Poste
+      { wch: 15 }, // Département
+      { wch: 12 }, // Type contrat
+      { wch: 12 }, // Date embauche
+      { wch: 12 }, // Heures totales
+      { wch: 12 }, // Heures normales
+      { wch: 15 }, // Taux horaire
+      { wch: 15 }, // Salaire base
+      { wch: 12 }, // HS 25%
+      { wch: 15 }, // Montant HS 25%
+      { wch: 12 }, // HS 50%
+      { wch: 15 }, // Montant HS 50%
+      { wch: 12 }, // Heures nuit
+      { wch: 12 }, // Prime nuit
+      { wch: 15 }, // Brut
+      { wch: 15 }, // Charges
+      { wch: 15 }, // Net
+    ];
 
-    // Save
-    doc.save(`bulletin_${employee.lastName}_${employee.firstName}_${monthName.replace(' ', '_')}.pdf`);
+    XLSX.utils.book_append_sheet(wb, wsDetail, 'Détail bulletins');
+
+    // Feuille 3: Export comptable (format simplifié pour import)
+    const accountingData = [
+      ['EXPORT COMPTABLE - Pennylane compatible'],
+      ['Journal des salaires'],
+      ['Période', format(new Date(selectedYear, selectedMonth - 1), 'MM/yyyy')],
+      [],
+      ['Date', 'Compte', 'Libellé', 'Débit', 'Crédit', 'N° pièce', 'N° séquentiel'],
+    ];
+
+    let seqNum = 1;
+    slips.forEach(slip => {
+      const pieceNum = `SAL${selectedYear}${String(selectedMonth).padStart(2, '0')}${String(seqNum).padStart(3, '0')}`;
+      const dateOp = format(endOfMonth(new Date(selectedYear, selectedMonth - 1)), 'dd/MM/yyyy');
+      
+      // Ligne de débit (charge de personnel)
+      accountingData.push([
+        dateOp,
+        '641100', // Compte de charge : Rémunérations du personnel
+        `Salaires bruts - ${slip.employee.lastName} ${slip.employee.firstName}`,
+        slip.grossSalary.toFixed(2),
+        '',
+        pieceNum,
+        String(seqNum),
+      ]);
+
+      // Ligne de crédit (charges sociales à payer)
+      accountingData.push([
+        dateOp,
+        '431000', // Compte de passif : Charges sociales
+        `Charges sociales - ${slip.employee.lastName} ${slip.employee.firstName}`,
+        '',
+        slip.socialCharges.toFixed(2),
+        pieceNum,
+        String(seqNum),
+      ]);
+
+      // Ligne de crédit (net à payer)
+      accountingData.push([
+        dateOp,
+        '421000', // Compte de passif : Personnel - Rémunérations dues
+        `Net à payer - ${slip.employee.lastName} ${slip.employee.firstName}`,
+        '',
+        slip.netSalary.toFixed(2),
+        pieceNum,
+        String(seqNum),
+      ]);
+
+      seqNum++;
+    });
+
+    const wsAccounting = XLSX.utils.aoa_to_sheet(accountingData);
+    wsAccounting['!cols'] = [
+      { wch: 12 }, // Date
+      { wch: 10 }, // Compte
+      { wch: 50 }, // Libellé
+      { wch: 15 }, // Débit
+      { wch: 15 }, // Crédit
+      { wch: 20 }, // N° pièce
+      { wch: 12 }, // N° séquentiel
+    ];
+
+    XLSX.utils.book_append_sheet(wb, wsAccounting, 'Export comptable');
+
+    // Générer et télécharger le fichier
+    const fileName = `bulletins_paie_${selectedYear}_${String(selectedMonth).padStart(2, '0')}.xlsx`;
+    console.log('Écriture du fichier Excel:', fileName);
+    
+    try {
+      XLSX.writeFile(wb, fileName);
+      console.log('Fichier Excel écrit avec succès');
+    } catch (error) {
+      console.error('Erreur lors de l\'écriture du fichier Excel:', error);
+      throw error;
+    }
   };
 
-  const generateAllPDFs = () => {
-    generatedSlips.forEach((slip) => generatePDF(slip));
+  const generateCSV = (slips: GeneratedPaySlip[]) => {
+    console.log('Génération CSV - Début');
+    
+    // Format CSV simplifié pour import rapide
+    const headers = [
+      'Nom',
+      'Prénom',
+      'N° Sécurité Sociale',
+      'Poste',
+      'Département',
+      'Type contrat',
+      'Date embauche',
+      'Heures totales',
+      'Heures normales',
+      'Taux horaire base',
+      'Salaire base',
+      'Heures sup. 25%',
+      'Montant HS 25%',
+      'Heures sup. 50%',
+      'Montant HS 50%',
+      'Heures de nuit',
+      'Prime nuit',
+      'Salaire brut',
+      'Charges salariales',
+      'Salaire net',
+    ];
+
+    const rows = slips.map(slip => [
+      slip.employee.lastName,
+      slip.employee.firstName,
+      slip.employee.socialSecurityNumber,
+      slip.employee.position,
+      slip.employee.department,
+      slip.employee.contractType,
+      format(new Date(slip.employee.startDate), 'dd/MM/yyyy'),
+      slip.totalHours.toFixed(2),
+      slip.regularHours.toFixed(2),
+      slip.employee.hourlyRate.toFixed(2),
+      slip.baseSalary.toFixed(2),
+      slip.overtime25Hours.toFixed(2),
+      slip.overtime25Pay.toFixed(2),
+      slip.overtime50Hours.toFixed(2),
+      slip.overtime50Pay.toFixed(2),
+      slip.nightHours.toFixed(2),
+      slip.nightBonus.toFixed(2),
+      slip.grossSalary.toFixed(2),
+      slip.socialCharges.toFixed(2),
+      slip.netSalary.toFixed(2),
+    ]);
+
+    const csvContent = [
+      headers.join(';'),
+      ...rows.map(row => row.join(';'))
+    ].join('\n');
+
+    console.log('Contenu CSV généré, longueur:', csvContent.length);
+
+    // Télécharger le CSV avec une approche plus fiable
+    const fileName = `bulletins_paie_${selectedYear}_${String(selectedMonth).padStart(2, '0')}.csv`;
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    
+    // Utiliser window.navigator.msSaveOrOpenBlob pour IE/Edge
+    if (window.navigator && (window.navigator as any).msSaveOrOpenBlob) {
+      (window.navigator as any).msSaveOrOpenBlob(blob, fileName);
+    } else {
+      // Pour les autres navigateurs
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      
+      // Forcer le clic
+      link.click();
+      
+      // Nettoyage
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+    }
+    
+    console.log('CSV téléchargé:', fileName);
+  };
+
+  const generateAllExcel = () => {
+    try {
+      console.log('Export Excel - Nombre de bulletins:', generatedSlips.length);
+      if (generatedSlips.length === 0) {
+        alert('Aucun bulletin à exporter. Veuillez d\'abord calculer les bulletins.');
+        return;
+      }
+      generateExcel(generatedSlips);
+      console.log('Export Excel terminé avec succès');
+    } catch (error) {
+      console.error('Erreur lors de l\'export Excel:', error);
+      alert('Erreur lors de l\'export Excel. Consultez la console pour plus de détails.');
+    }
+  };
+
+  const generateAllCSV = () => {
+    try {
+      console.log('Export CSV - Nombre de bulletins:', generatedSlips.length);
+      if (generatedSlips.length === 0) {
+        alert('Aucun bulletin à exporter. Veuillez d\'abord calculer les bulletins.');
+        return;
+      }
+      generateCSV(generatedSlips);
+      console.log('Export CSV terminé avec succès');
+    } catch (error) {
+      console.error('Erreur lors de l\'export CSV:', error);
+      alert('Erreur lors de l\'export CSV. Consultez la console pour plus de détails.');
+    }
   };
 
   const months = [
@@ -290,6 +488,14 @@ export default function PaySlipGenerator({ employees, shifts }: PaySlipGenerator
             <p className="font-medium">Travail de nuit (21h-6h) :</p>
             <p>+1€ brut/heure</p>
           </div>
+        </div>
+        <div className="mt-3 pt-3 border-t border-purple-200 text-sm text-purple-700">
+          <p className="font-medium mb-1">💡 Export comptable :</p>
+          <p className="text-xs">Les exports Excel et CSV sont compatibles avec les logiciels comptables (Pennylane, Sage, etc.)</p>
+          <ul className="text-xs mt-1 ml-4 list-disc">
+            <li><strong>Excel</strong> : 3 onglets (Résumé, Détail, Export comptable avec écritures)</li>
+            <li><strong>CSV</strong> : Format simplifié pour import rapide</li>
+          </ul>
         </div>
       </div>
 
@@ -350,16 +556,30 @@ export default function PaySlipGenerator({ employees, shifts }: PaySlipGenerator
       {/* Generated Pay Slips */}
       {generatedSlips.length > 0 && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-            <h2 className="text-lg font-bold text-gray-800">
-              Bulletins - {months[selectedMonth - 1]} {selectedYear}
-            </h2>
-            <button
-              onClick={generateAllPDFs}
-              className="px-4 py-2 bg-gradient-to-r from-purple-500 to-violet-600 text-white text-sm font-medium rounded-xl shadow hover:shadow-lg transition-all"
-            >
-              <i className="fas fa-download mr-2"></i>Tout télécharger
-            </button>
+          <div className="p-6 border-b border-gray-100">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+              <h2 className="text-lg font-bold text-gray-800">
+                Bulletins - {months[selectedMonth - 1]} {selectedYear}
+              </h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={generateAllExcel}
+                  className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-medium rounded-xl shadow hover:shadow-lg transition-all flex items-center"
+                >
+                  <i className="fas fa-file-excel mr-2"></i>Export Excel
+                </button>
+                <button
+                  onClick={generateAllCSV}
+                  className="px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-600 text-white text-sm font-medium rounded-xl shadow hover:shadow-lg transition-all flex items-center"
+                >
+                  <i className="fas fa-file-csv mr-2"></i>Export CSV
+                </button>
+              </div>
+            </div>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
+              <i className="fas fa-check-circle mr-2"></i>
+              <strong>{generatedSlips.length} bulletin(s) calculé(s)</strong> - Cliquez sur les boutons d'export pour télécharger les fichiers
+            </div>
           </div>
 
           <div className="divide-y divide-gray-50">
@@ -405,12 +625,7 @@ export default function PaySlipGenerator({ employees, shifts }: PaySlipGenerator
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => generatePDF(slip)}
-                    className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors text-sm font-medium shadow-sm"
-                  >
-                    <i className="fas fa-file-pdf mr-2 text-red-500"></i>PDF
-                  </button>
+
                 </div>
 
                 {/* Detail breakdown */}
