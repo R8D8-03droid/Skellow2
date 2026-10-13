@@ -91,6 +91,15 @@ export default function Login({ employees, onLogin }: LoginProps) {
             <p><span className="font-medium">Admin :</span> admin@nightclub.fr / admin123</p>
             <p><span className="font-medium">Employé :</span> dj.max@nightclub.fr / max123</p>
           </div>
+          <button
+            onClick={() => {
+              localStorage.clear();
+              window.location.reload();
+            }}
+            className="mt-3 text-xs text-red-500 hover:text-red-700 underline"
+          >
+            Réinitialiser les données
+          </button>
         </div>
       </div>
     </div>

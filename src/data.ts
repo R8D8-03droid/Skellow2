@@ -164,7 +164,21 @@ function generateDefaultShifts(): Shift[] {
 export function loadEmployees(): Employee[] {
   const stored = localStorage.getItem('hotel_employees');
   if (stored) {
-    return JSON.parse(stored);
+    const employees = JSON.parse(stored);
+    
+    // Vérifier si les données sont obsolètes (ancien système hôtel)
+    const hasOldHotelData = employees.some((emp: Employee) => 
+      emp.email && emp.email.includes('@hotel.fr')
+    );
+    
+    // Si données obsolètes, réinitialiser avec les nouvelles données
+    if (hasOldHotelData) {
+      console.log('Migration des données: ancien système hôtel détecté, réinitialisation...');
+      localStorage.setItem('hotel_employees', JSON.stringify(defaultEmployees));
+      return defaultEmployees;
+    }
+    
+    return employees;
   }
   localStorage.setItem('hotel_employees', JSON.stringify(defaultEmployees));
   return defaultEmployees;
@@ -177,7 +191,27 @@ export function saveEmployees(employees: Employee[]) {
 export function loadShifts(): Shift[] {
   const stored = localStorage.getItem('hotel_shifts');
   if (stored) {
-    return JSON.parse(stored);
+    const shifts = JSON.parse(stored);
+    
+    // Vérifier si les shifts contiennent des anciens rôles (hôtel)
+    const hasOldHotelShifts = shifts.some((shift: Shift) => 
+      shift.role && (
+        shift.role.includes('Chef de rang') || 
+        shift.role.includes('Serveuse') ||
+        shift.role.includes('Cuisinier') ||
+        shift.role.includes('Réceptionniste')
+      )
+    );
+    
+    // Si données obsolètes, réinitialiser avec les nouvelles données
+    if (hasOldHotelShifts) {
+      console.log('Migration des shifts: ancien système hôtel détecté, réinitialisation...');
+      const defaultShifts = generateDefaultShifts();
+      localStorage.setItem('hotel_shifts', JSON.stringify(defaultShifts));
+      return defaultShifts;
+    }
+    
+    return shifts;
   }
   const defaultShifts = generateDefaultShifts();
   localStorage.setItem('hotel_shifts', JSON.stringify(defaultShifts));
