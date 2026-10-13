@@ -136,28 +136,11 @@ export default function PaySlipGenerator({ employees, shifts }: PaySlipGenerator
     const wb = XLSX.utils.book_new();
     console.log('Workbook créé');
 
-    // Feuille 1: Résumé global
-    const summaryData = [
-      ['BULLETINS DE PAIE - NIGHT CLUB'],
-      ['Convention Collective IDCC 1790 - Espaces de loisirs, d\'attractions et culturels'],
-      [],
+    // Feuille 1: Données brutes par employé
+    const detailData: Array<Array<string | number>> = [
+      ['DONNÉES BRUTES - NIGHT CLUB'],
       ['Période', format(new Date(selectedYear, selectedMonth - 1), 'MMMM yyyy', { locale: fr })],
       ['Date d\'export', format(new Date(), 'dd/MM/yyyy HH:mm')],
-      [],
-      ['RÉCAPITULATIF GLOBAL'],
-      ['Nombre de bulletins', slips.length],
-      ['Masse salariale brute', `${slips.reduce((sum, s) => sum + s.grossSalary, 0).toFixed(2)} €`],
-      ['Total charges salariales', `${slips.reduce((sum, s) => sum + s.socialCharges, 0).toFixed(2)} €`],
-      ['Masse salariale nette', `${slips.reduce((sum, s) => sum + s.netSalary, 0).toFixed(2)} €`],
-    ];
-
-    const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
-    XLSX.utils.book_append_sheet(wb, wsSummary, 'Résumé');
-
-    // Feuille 2: Détail par employé (format compatible import comptable)
-    const detailData = [
-      ['DÉTAIL DES BULLETINS DE PAIE'],
-      ['Période', format(new Date(selectedYear, selectedMonth - 1), 'MMMM yyyy', { locale: fr })],
       [],
       [
         'Nom',
@@ -167,23 +150,34 @@ export default function PaySlipGenerator({ employees, shifts }: PaySlipGenerator
         'Département',
         'Type contrat',
         'Date embauche',
-        'Heures totales',
+        'Heures totales travaillées',
         'Heures normales',
-        'Taux horaire base (€)',
-        'Salaire base (€)',
         'Heures sup. 25%',
-        'Montant HS 25% (€)',
         'Heures sup. 50%',
-        'Montant HS 50% (€)',
         'Heures de nuit',
-        'Prime nuit (€)',
-        'Salaire brut (€)',
-        'Charges salariales (€)',
-        'Salaire net (€)',
+        'Nombre d\'absences justifiées',
+        'Nombre d\'absences injustifiées',
       ]
     ];
 
     slips.forEach(slip => {
+      // Compter les absences pour cet employé sur la période
+      const monthStart = startOfMonth(new Date(selectedYear, selectedMonth - 1));
+      const monthEnd = endOfMonth(new Date(selectedYear, selectedMonth - 1));
+      const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
+      
+      let absencesJustifiees = 0;
+      let absencesInjustifiees = 0;
+      
+      days.forEach((day) => {
+        const dateStr = format(day, 'yyyy-MM-dd');
+        const dayShifts = shifts.filter((s) => s.employeeId === slip.employeeId && s.date === dateStr);
+        dayShifts.forEach((shift) => {
+          if (shift.status === 'absence_justified') absencesJustifiees++;
+          if (shift.status === 'absence_unjustified') absencesInjustifiees++;
+        });
+      });
+      
       detailData.push([
         slip.employee.lastName,
         slip.employee.firstName,
@@ -192,19 +186,13 @@ export default function PaySlipGenerator({ employees, shifts }: PaySlipGenerator
         slip.employee.department,
         slip.employee.contractType,
         format(new Date(slip.employee.startDate), 'dd/MM/yyyy'),
-        slip.totalHours.toFixed(2),
-        slip.regularHours.toFixed(2),
-        slip.employee.hourlyRate.toFixed(2),
-        slip.baseSalary.toFixed(2),
-        slip.overtime25Hours.toFixed(2),
-        slip.overtime25Pay.toFixed(2),
-        slip.overtime50Hours.toFixed(2),
-        slip.overtime50Pay.toFixed(2),
-        slip.nightHours.toFixed(2),
-        slip.nightBonus.toFixed(2),
-        slip.grossSalary.toFixed(2),
-        slip.socialCharges.toFixed(2),
-        slip.netSalary.toFixed(2),
+        Number(slip.totalHours.toFixed(2)),
+        Number(slip.regularHours.toFixed(2)),
+        Number(slip.overtime25Hours.toFixed(2)),
+        Number(slip.overtime50Hours.toFixed(2)),
+        Number(slip.nightHours.toFixed(2)),
+        absencesJustifiees,
+        absencesInjustifiees,
       ]);
     });
 
@@ -218,19 +206,13 @@ export default function PaySlipGenerator({ employees, shifts }: PaySlipGenerator
       '',
       '',
       '',
-      slips.reduce((sum, s) => sum + s.totalHours, 0).toFixed(2),
-      slips.reduce((sum, s) => sum + s.regularHours, 0).toFixed(2),
+      Number(slips.reduce((sum, s) => sum + s.totalHours, 0).toFixed(2)),
+      Number(slips.reduce((sum, s) => sum + s.regularHours, 0).toFixed(2)),
+      Number(slips.reduce((sum, s) => sum + s.overtime25Hours, 0).toFixed(2)),
+      Number(slips.reduce((sum, s) => sum + s.overtime50Hours, 0).toFixed(2)),
+      Number(slips.reduce((sum, s) => sum + s.nightHours, 0).toFixed(2)),
       '',
-      slips.reduce((sum, s) => sum + s.baseSalary, 0).toFixed(2),
-      slips.reduce((sum, s) => sum + s.overtime25Hours, 0).toFixed(2),
-      slips.reduce((sum, s) => sum + s.overtime25Pay, 0).toFixed(2),
-      slips.reduce((sum, s) => sum + s.overtime50Hours, 0).toFixed(2),
-      slips.reduce((sum, s) => sum + s.overtime50Pay, 0).toFixed(2),
-      slips.reduce((sum, s) => sum + s.nightHours, 0).toFixed(2),
-      slips.reduce((sum, s) => sum + s.nightBonus, 0).toFixed(2),
-      slips.reduce((sum, s) => sum + s.grossSalary, 0).toFixed(2),
-      slips.reduce((sum, s) => sum + s.socialCharges, 0).toFixed(2),
-      slips.reduce((sum, s) => sum + s.netSalary, 0).toFixed(2),
+      '',
     ]);
 
     const wsDetail = XLSX.utils.aoa_to_sheet(detailData);
@@ -239,93 +221,24 @@ export default function PaySlipGenerator({ employees, shifts }: PaySlipGenerator
     wsDetail['!cols'] = [
       { wch: 15 }, // Nom
       { wch: 15 }, // Prénom
-      { wch: 20 }, // N° SS
+      { wch: 22 }, // N° SS
       { wch: 20 }, // Poste
-      { wch: 15 }, // Département
-      { wch: 12 }, // Type contrat
-      { wch: 12 }, // Date embauche
-      { wch: 12 }, // Heures totales
-      { wch: 12 }, // Heures normales
-      { wch: 15 }, // Taux horaire
-      { wch: 15 }, // Salaire base
-      { wch: 12 }, // HS 25%
-      { wch: 15 }, // Montant HS 25%
-      { wch: 12 }, // HS 50%
-      { wch: 15 }, // Montant HS 50%
-      { wch: 12 }, // Heures nuit
-      { wch: 12 }, // Prime nuit
-      { wch: 15 }, // Brut
-      { wch: 15 }, // Charges
-      { wch: 15 }, // Net
+      { wch: 18 }, // Département
+      { wch: 14 }, // Type contrat
+      { wch: 14 }, // Date embauche
+      { wch: 18 }, // Heures totales
+      { wch: 14 }, // Heures normales
+      { wch: 14 }, // HS 25%
+      { wch: 14 }, // HS 50%
+      { wch: 14 }, // Heures nuit
+      { wch: 20 }, // Abs. justifiées
+      { wch: 22 }, // Abs. injustifiées
     ];
 
-    XLSX.utils.book_append_sheet(wb, wsDetail, 'Détail bulletins');
-
-    // Feuille 3: Export comptable (format simplifié pour import)
-    const accountingData = [
-      ['EXPORT COMPTABLE - Pennylane compatible'],
-      ['Journal des salaires'],
-      ['Période', format(new Date(selectedYear, selectedMonth - 1), 'MM/yyyy')],
-      [],
-      ['Date', 'Compte', 'Libellé', 'Débit', 'Crédit', 'N° pièce', 'N° séquentiel'],
-    ];
-
-    let seqNum = 1;
-    slips.forEach(slip => {
-      const pieceNum = `SAL${selectedYear}${String(selectedMonth).padStart(2, '0')}${String(seqNum).padStart(3, '0')}`;
-      const dateOp = format(endOfMonth(new Date(selectedYear, selectedMonth - 1)), 'dd/MM/yyyy');
-      
-      // Ligne de débit (charge de personnel)
-      accountingData.push([
-        dateOp,
-        '641100', // Compte de charge : Rémunérations du personnel
-        `Salaires bruts - ${slip.employee.lastName} ${slip.employee.firstName}`,
-        slip.grossSalary.toFixed(2),
-        '',
-        pieceNum,
-        String(seqNum),
-      ]);
-
-      // Ligne de crédit (charges sociales à payer)
-      accountingData.push([
-        dateOp,
-        '431000', // Compte de passif : Charges sociales
-        `Charges sociales - ${slip.employee.lastName} ${slip.employee.firstName}`,
-        '',
-        slip.socialCharges.toFixed(2),
-        pieceNum,
-        String(seqNum),
-      ]);
-
-      // Ligne de crédit (net à payer)
-      accountingData.push([
-        dateOp,
-        '421000', // Compte de passif : Personnel - Rémunérations dues
-        `Net à payer - ${slip.employee.lastName} ${slip.employee.firstName}`,
-        '',
-        slip.netSalary.toFixed(2),
-        pieceNum,
-        String(seqNum),
-      ]);
-
-      seqNum++;
-    });
-
-    const wsAccounting = XLSX.utils.aoa_to_sheet(accountingData);
-    wsAccounting['!cols'] = [
-      { wch: 12 }, // Date
-      { wch: 10 }, // Compte
-      { wch: 50 }, // Libellé
-      { wch: 15 }, // Débit
-      { wch: 15 }, // Crédit
-      { wch: 20 }, // N° pièce
-      { wch: 12 }, // N° séquentiel
-    ];
-
-    XLSX.utils.book_append_sheet(wb, wsAccounting, 'Export comptable');
+    XLSX.utils.book_append_sheet(wb, wsDetail, 'Données brutes');
 
     // Générer et télécharger le fichier
-    const fileName = `bulletins_paie_${selectedYear}_${String(selectedMonth).padStart(2, '0')}.xlsx`;
+    const fileName = `donnees_brutes_${selectedYear}_${String(selectedMonth).padStart(2, '0')}.xlsx`;
     console.log('Écriture du fichier Excel:', fileName);
     
     try {
@@ -340,7 +253,7 @@ export default function PaySlipGenerator({ employees, shifts }: PaySlipGenerator
   const generateCSV = (slips: GeneratedPaySlip[]) => {
     console.log('Génération CSV - Début');
     
-    // Format CSV simplifié pour import rapide
+    // Format CSV simplifié pour import rapide - données brutes uniquement
     const headers = [
       'Nom',
       'Prénom',
@@ -349,43 +262,50 @@ export default function PaySlipGenerator({ employees, shifts }: PaySlipGenerator
       'Département',
       'Type contrat',
       'Date embauche',
-      'Heures totales',
+      'Heures totales travaillées',
       'Heures normales',
-      'Taux horaire base',
-      'Salaire base',
       'Heures sup. 25%',
-      'Montant HS 25%',
       'Heures sup. 50%',
-      'Montant HS 50%',
       'Heures de nuit',
-      'Prime nuit',
-      'Salaire brut',
-      'Charges salariales',
-      'Salaire net',
+      'Absences justifiées',
+      'Absences injustifiées',
     ];
 
-    const rows = slips.map(slip => [
-      slip.employee.lastName,
-      slip.employee.firstName,
-      slip.employee.socialSecurityNumber,
-      slip.employee.position,
-      slip.employee.department,
-      slip.employee.contractType,
-      format(new Date(slip.employee.startDate), 'dd/MM/yyyy'),
-      slip.totalHours.toFixed(2),
-      slip.regularHours.toFixed(2),
-      slip.employee.hourlyRate.toFixed(2),
-      slip.baseSalary.toFixed(2),
-      slip.overtime25Hours.toFixed(2),
-      slip.overtime25Pay.toFixed(2),
-      slip.overtime50Hours.toFixed(2),
-      slip.overtime50Pay.toFixed(2),
-      slip.nightHours.toFixed(2),
-      slip.nightBonus.toFixed(2),
-      slip.grossSalary.toFixed(2),
-      slip.socialCharges.toFixed(2),
-      slip.netSalary.toFixed(2),
-    ]);
+    const rows = slips.map(slip => {
+      // Compter les absences pour cet employé sur la période
+      const monthStart = startOfMonth(new Date(selectedYear, selectedMonth - 1));
+      const monthEnd = endOfMonth(new Date(selectedYear, selectedMonth - 1));
+      const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
+      
+      let absencesJustifiees = 0;
+      let absencesInjustifiees = 0;
+      
+      days.forEach((day) => {
+        const dateStr = format(day, 'yyyy-MM-dd');
+        const dayShifts = shifts.filter((s) => s.employeeId === slip.employeeId && s.date === dateStr);
+        dayShifts.forEach((shift) => {
+          if (shift.status === 'absence_justified') absencesJustifiees++;
+          if (shift.status === 'absence_unjustified') absencesInjustifiees++;
+        });
+      });
+      
+      return [
+        slip.employee.lastName,
+        slip.employee.firstName,
+        slip.employee.socialSecurityNumber,
+        slip.employee.position,
+        slip.employee.department,
+        slip.employee.contractType,
+        format(new Date(slip.employee.startDate), 'dd/MM/yyyy'),
+        slip.totalHours.toFixed(2),
+        slip.regularHours.toFixed(2),
+        slip.overtime25Hours.toFixed(2),
+        slip.overtime50Hours.toFixed(2),
+        slip.nightHours.toFixed(2),
+        String(absencesJustifiees),
+        String(absencesInjustifiees),
+      ];
+    });
 
     const csvContent = [
       headers.join(';'),
@@ -395,7 +315,7 @@ export default function PaySlipGenerator({ employees, shifts }: PaySlipGenerator
     console.log('Contenu CSV généré, longueur:', csvContent.length);
 
     // Télécharger le CSV avec une approche plus fiable
-    const fileName = `bulletins_paie_${selectedYear}_${String(selectedMonth).padStart(2, '0')}.csv`;
+    const fileName = `donnees_brutes_${selectedYear}_${String(selectedMonth).padStart(2, '0')}.csv`;
     const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
     
     // Utiliser window.navigator.msSaveOrOpenBlob pour IE/Edge
@@ -490,11 +410,11 @@ export default function PaySlipGenerator({ employees, shifts }: PaySlipGenerator
           </div>
         </div>
         <div className="mt-3 pt-3 border-t border-purple-200 text-sm text-purple-700">
-          <p className="font-medium mb-1">💡 Export comptable :</p>
-          <p className="text-xs">Les exports Excel et CSV sont compatibles avec les logiciels comptables (Pennylane, Sage, etc.)</p>
+          <p className="font-medium mb-1">💡 Export données brutes :</p>
+          <p className="text-xs">Les exports contiennent uniquement les données brutes (heures, absences) pour traitement dans votre logiciel comptable</p>
           <ul className="text-xs mt-1 ml-4 list-disc">
-            <li><strong>Excel</strong> : 3 onglets (Résumé, Détail, Export comptable avec écritures)</li>
-            <li><strong>CSV</strong> : Format simplifié pour import rapide</li>
+            <li><strong>Excel</strong> : Données brutes par employé avec heures et absences</li>
+            <li><strong>CSV</strong> : Même format, compatible import rapide</li>
           </ul>
         </div>
       </div>
