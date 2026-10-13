@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Employee, Shift } from '../types';
 import { format, startOfWeek, addDays, addWeeks, subWeeks, isToday } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -30,9 +30,45 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
   const [activeId, setActiveId] = useState<string | null>(null);
   const [copyMode, setCopyMode] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ shift: Shift; x: number; y: number; confirmDelete?: boolean } | null>(null);
+  
+  // État de publication du planning
+  const [isPublished, setIsPublished] = useState(false);
+  
+  // Charger l'état de publication de la semaine courante
+  const loadPublishedState = (weekStart: Date) => {
+    const weekKey = `planning_published_${format(weekStart, 'yyyy-MM-dd')}`;
+    const published = localStorage.getItem(weekKey) === 'true';
+    setIsPublished(published);
+  };
+  
+  // Sauvegarder l'état de publication
+  const savePublishedState = (weekStart: Date, published: boolean) => {
+    const weekKey = `planning_published_${format(weekStart, 'yyyy-MM-dd')}`;
+    localStorage.setItem(weekKey, published ? 'true' : 'false');
+    setIsPublished(published);
+  };
+  
+  // Publier le planning
+  const handlePublish = () => {
+    if (confirm('Êtes-vous sûr de vouloir publier ce planning ? Les employés pourront le consulter.')) {
+      savePublishedState(currentWeekStart, true);
+    }
+  };
+  
+  // Dépublier le planning
+  const handleUnpublish = () => {
+    if (confirm('Êtes-vous sûr de vouloir dépublier ce planning ? Les employés ne pourront plus le consulter.')) {
+      savePublishedState(currentWeekStart, false);
+    }
+  };
+  
+  // Charger l'état de publication quand la semaine change
+  useEffect(() => {
+    loadPublishedState(currentWeekStart);
+  }, [currentWeekStart]);
 
   const days = Array.from({ length: 7 }).map((_, i) => addDays(currentWeekStart, i));
-  const activeEmployees = employees.filter((e) => e.active && e.role === 'employee');
+  const activeEmployees = employees.filter((e) => e.active);
   const departments = [...new Set(activeEmployees.map((e) => e.department))];
 
   const filteredEmployees = selectedDepartment === 'all'
@@ -276,6 +312,54 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
         </div>
       </div>
 
+      {/* Publication Status Bar */}
+      <div className="mb-4 flex items-center justify-between bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+        <div className="flex items-center gap-3">
+          {isPublished ? (
+            <>
+              <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                <i className="fas fa-check-circle text-green-600 text-xl"></i>
+              </div>
+              <div>
+                <p className="font-semibold text-green-800">Planning publié</p>
+                <p className="text-sm text-gray-600">Les employés peuvent consulter ce planning</p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                <i className="fas fa-edit text-orange-600 text-xl"></i>
+              </div>
+              <div>
+                <p className="font-semibold text-orange-800">Planning en cours d'édition</p>
+                <p className="text-sm text-gray-600">
+                  {isAdmin ? 'Publiez-le pour que les employés puissent le consulter' : 'Ce planning n\'est pas encore visible'}
+                </p>
+              </div>
+            </>
+          )}
+        </div>
+        {isAdmin && (
+          <div>
+            {isPublished ? (
+              <button
+                onClick={handleUnpublish}
+                className="px-4 py-2 bg-white border-2 border-orange-500 text-orange-600 text-sm font-medium rounded-xl hover:bg-orange-50 transition-all"
+              >
+                <i className="fas fa-eye-slash mr-2"></i>Dépublier
+              </button>
+            ) : (
+              <button
+                onClick={handlePublish}
+                className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-medium rounded-xl shadow hover:shadow-lg transition-all"
+              >
+                <i className="fas fa-paper-plane mr-2"></i>Publier
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Help text for drag & drop */}
       {isAdmin && (
         <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-xl text-sm text-blue-700 flex items-start gap-2">
@@ -288,7 +372,22 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
         </div>
       )}
 
-      {/* Planning Table */}
+      {/* Message pour les employés si le planning n'est pas publié */}
+      {!isAdmin && !isPublished && (
+        <div className="mb-4 p-6 bg-orange-50 border-2 border-orange-200 rounded-xl text-center">
+          <div className="w-16 h-16 mx-auto mb-4 bg-orange-100 rounded-full flex items-center justify-center">
+            <i className="fas fa-lock text-orange-500 text-3xl"></i>
+          </div>
+          <h3 className="text-lg font-bold text-orange-800 mb-2">Planning non publié</h3>
+          <p className="text-orange-700">
+            Ce planning est en cours de préparation par l'administration.<br />
+            Il sera visible une fois publié.
+          </p>
+        </div>
+      )}
+
+      {/* Planning Table - Masqué pour les employés si non publié */}
+      {(isAdmin || isPublished) && (
       <DndContext
         sensors={sensors}
         onDragStart={handleDragStart}
@@ -344,12 +443,21 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
                     <tr key={employee.id} className="hover:bg-gray-50/50">
                       <td className="sticky left-0 bg-white z-10 px-4 py-3">
                         <div className="flex items-center gap-3 mb-2">
-                          <div className="w-8 h-8 bg-gradient-to-br from-purple-400 to-violet-500 rounded-full flex items-center justify-center text-white font-bold text-xs">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs ${
+                            employee.role === 'admin' 
+                              ? 'bg-gradient-to-br from-amber-400 to-orange-500' 
+                              : 'bg-gradient-to-br from-purple-400 to-violet-500'
+                          }`}>
                             {employee.firstName[0]}{employee.lastName[0]}
                           </div>
                           <div>
-                            <p className="font-medium text-gray-800 text-sm">
+                            <p className="font-medium text-gray-800 text-sm flex items-center gap-1.5">
                               {employee.firstName} {employee.lastName}
+                              {employee.role === 'admin' && (
+                                <span className="text-[9px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full font-semibold">
+                                  <i className="fas fa-crown mr-0.5"></i>Admin
+                                </span>
+                              )}
                             </p>
                             <p className="text-xs text-gray-400">{employee.department}</p>
                           </div>
@@ -440,12 +548,34 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
           ) : null}
         </DragOverlay>
       </DndContext>
+      )}
 
       {/* Context Menu */}
       {contextMenu && (
         <div
           className="fixed z-[100] bg-white rounded-xl shadow-2xl border border-gray-200 py-2 min-w-[200px]"
-          style={{ top: contextMenu.y, left: contextMenu.x }}
+          style={{
+            top: (() => {
+              // Hauteur estimée du menu (~400px pour le menu complet)
+              const menuHeight = 400;
+              const viewportHeight = window.innerHeight;
+              // Si le menu déborde en bas, l'afficher au-dessus du clic
+              if (contextMenu.y + menuHeight > viewportHeight) {
+                return Math.max(10, contextMenu.y - menuHeight);
+              }
+              return contextMenu.y;
+            })(),
+            left: (() => {
+              // Largeur estimée du menu (~220px)
+              const menuWidth = 220;
+              const viewportWidth = window.innerWidth;
+              // Si le menu déborde à droite, l'afficher à gauche du clic
+              if (contextMenu.x + menuWidth > viewportWidth) {
+                return Math.max(10, contextMenu.x - menuWidth);
+              }
+              return contextMenu.x;
+            })(),
+          }}
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
           onPointerUp={(e) => e.stopPropagation()}

@@ -40,10 +40,10 @@ export default function Dashboard({ employees, shifts, currentUser }: DashboardP
   ).length;
 
   // Active employees count
-  const activeEmployees = employees.filter((e) => e.active && e.role === 'employee').length;
+  const activeEmployees = employees.filter((e) => e.active).length;
 
   // Department distribution
-  const departments = [...new Set(employees.filter(e => e.active && e.role === 'employee').map(e => e.department))];
+  const departments = [...new Set(employees.filter(e => e.active).map(e => e.department))];
 
   return (
     <div className="p-6 lg:p-8">
@@ -204,7 +204,7 @@ export default function Dashboard({ employees, shifts, currentUser }: DashboardP
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {departments.map((dept) => {
-              const count = employees.filter((e) => e.department === dept && e.active && e.role === 'employee').length;
+              const count = employees.filter((e) => e.department === dept && e.active).length;
               const colors: Record<string, string> = {
                 'Bar': 'from-blue-400 to-cyan-500',
                 'Sécurité': 'from-red-400 to-rose-500',
