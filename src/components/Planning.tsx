@@ -454,7 +454,28 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
       {contextMenu && (
         <div
           className="fixed z-[100] bg-white rounded-xl shadow-2xl border border-gray-200 py-2 min-w-[200px]"
-          style={{ top: contextMenu.y, left: contextMenu.x }}
+          style={{
+            top: (() => {
+              // Hauteur estimée du menu (~400px pour le menu complet)
+              const menuHeight = 400;
+              const viewportHeight = window.innerHeight;
+              // Si le menu déborde en bas, l'afficher au-dessus du clic
+              if (contextMenu.y + menuHeight > viewportHeight) {
+                return Math.max(10, contextMenu.y - menuHeight);
+              }
+              return contextMenu.y;
+            })(),
+            left: (() => {
+              // Largeur estimée du menu (~220px)
+              const menuWidth = 220;
+              const viewportWidth = window.innerWidth;
+              // Si le menu déborde à droite, l'afficher à gauche du clic
+              if (contextMenu.x + menuWidth > viewportWidth) {
+                return Math.max(10, contextMenu.x - menuWidth);
+              }
+              return contextMenu.x;
+            })(),
+          }}
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
           onPointerUp={(e) => e.stopPropagation()}
