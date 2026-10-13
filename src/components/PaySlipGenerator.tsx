@@ -130,8 +130,11 @@ export default function PaySlipGenerator({ employees, shifts }: PaySlipGenerator
   };
 
   const generateExcel = (slips: GeneratedPaySlip[]) => {
+    console.log('Génération Excel - Début, nombre de bulletins:', slips.length);
+    
     // Créer un workbook
     const wb = XLSX.utils.book_new();
+    console.log('Workbook créé');
 
     // Feuille 1: Résumé global
     const summaryData = [
@@ -323,10 +326,20 @@ export default function PaySlipGenerator({ employees, shifts }: PaySlipGenerator
 
     // Générer et télécharger le fichier
     const fileName = `bulletins_paie_${selectedYear}_${String(selectedMonth).padStart(2, '0')}.xlsx`;
-    XLSX.writeFile(wb, fileName);
+    console.log('Écriture du fichier Excel:', fileName);
+    
+    try {
+      XLSX.writeFile(wb, fileName);
+      console.log('Fichier Excel écrit avec succès');
+    } catch (error) {
+      console.error('Erreur lors de l\'écriture du fichier Excel:', error);
+      throw error;
+    }
   };
 
   const generateCSV = (slips: GeneratedPaySlip[]) => {
+    console.log('Génération CSV - Début');
+    
     // Format CSV simplifié pour import rapide
     const headers = [
       'Nom',
@@ -379,25 +392,65 @@ export default function PaySlipGenerator({ employees, shifts }: PaySlipGenerator
       ...rows.map(row => row.join(';'))
     ].join('\n');
 
-    // Télécharger le CSV
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
+    console.log('Contenu CSV généré, longueur:', csvContent.length);
+
+    // Télécharger le CSV avec une approche plus fiable
     const fileName = `bulletins_paie_${selectedYear}_${String(selectedMonth).padStart(2, '0')}.csv`;
-    link.setAttribute('href', url);
-    link.setAttribute('download', fileName);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    
+    // Utiliser window.navigator.msSaveOrOpenBlob pour IE/Edge
+    if (window.navigator && (window.navigator as any).msSaveOrOpenBlob) {
+      (window.navigator as any).msSaveOrOpenBlob(blob, fileName);
+    } else {
+      // Pour les autres navigateurs
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      
+      // Forcer le clic
+      link.click();
+      
+      // Nettoyage
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+    }
+    
+    console.log('CSV téléchargé:', fileName);
   };
 
   const generateAllExcel = () => {
-    generateExcel(generatedSlips);
+    try {
+      console.log('Export Excel - Nombre de bulletins:', generatedSlips.length);
+      if (generatedSlips.length === 0) {
+        alert('Aucun bulletin à exporter. Veuillez d\'abord calculer les bulletins.');
+        return;
+      }
+      generateExcel(generatedSlips);
+      console.log('Export Excel terminé avec succès');
+    } catch (error) {
+      console.error('Erreur lors de l\'export Excel:', error);
+      alert('Erreur lors de l\'export Excel. Consultez la console pour plus de détails.');
+    }
   };
 
   const generateAllCSV = () => {
-    generateCSV(generatedSlips);
+    try {
+      console.log('Export CSV - Nombre de bulletins:', generatedSlips.length);
+      if (generatedSlips.length === 0) {
+        alert('Aucun bulletin à exporter. Veuillez d\'abord calculer les bulletins.');
+        return;
+      }
+      generateCSV(generatedSlips);
+      console.log('Export CSV terminé avec succès');
+    } catch (error) {
+      console.error('Erreur lors de l\'export CSV:', error);
+      alert('Erreur lors de l\'export CSV. Consultez la console pour plus de détails.');
+    }
   };
 
   const months = [
@@ -503,23 +556,29 @@ export default function PaySlipGenerator({ employees, shifts }: PaySlipGenerator
       {/* Generated Pay Slips */}
       {generatedSlips.length > 0 && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-            <h2 className="text-lg font-bold text-gray-800">
-              Bulletins - {months[selectedMonth - 1]} {selectedYear}
-            </h2>
-            <div className="flex gap-2">
-              <button
-                onClick={generateAllExcel}
-                className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-medium rounded-xl shadow hover:shadow-lg transition-all"
-              >
-                <i className="fas fa-file-excel mr-2"></i>Export Excel
-              </button>
-              <button
-                onClick={generateAllCSV}
-                className="px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-600 text-white text-sm font-medium rounded-xl shadow hover:shadow-lg transition-all"
-              >
-                <i className="fas fa-file-csv mr-2"></i>Export CSV
-              </button>
+          <div className="p-6 border-b border-gray-100">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+              <h2 className="text-lg font-bold text-gray-800">
+                Bulletins - {months[selectedMonth - 1]} {selectedYear}
+              </h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={generateAllExcel}
+                  className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-medium rounded-xl shadow hover:shadow-lg transition-all flex items-center"
+                >
+                  <i className="fas fa-file-excel mr-2"></i>Export Excel
+                </button>
+                <button
+                  onClick={generateAllCSV}
+                  className="px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-600 text-white text-sm font-medium rounded-xl shadow hover:shadow-lg transition-all flex items-center"
+                >
+                  <i className="fas fa-file-csv mr-2"></i>Export CSV
+                </button>
+              </div>
+            </div>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
+              <i className="fas fa-check-circle mr-2"></i>
+              <strong>{generatedSlips.length} bulletin(s) calculé(s)</strong> - Cliquez sur les boutons d'export pour télécharger les fichiers
             </div>
           </div>
 
