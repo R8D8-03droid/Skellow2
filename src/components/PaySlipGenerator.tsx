@@ -20,606 +20,233 @@ export default function PaySlipGenerator({ employees, shifts }: PaySlipGenerator
   const [generatedSlips, setGeneratedSlips] = useState<GeneratedPaySlip[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
 
-  const activeEmployees = employees.filter((e) => e.active);
+  const activeEmployees = employees.filter(e => e.active);
 
   const calculateMonthlyHours = (employeeId: string, month: number, year: number) => {
     const monthStart = startOfMonth(new Date(year, month - 1));
     const monthEnd = endOfMonth(new Date(year, month - 1));
     const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
-
     let totalMinutes = 0;
     let nightMinutes = 0;
 
-    days.forEach((day) => {
+    days.forEach(day => {
       const dateStr = format(day, 'yyyy-MM-dd');
-      const dayShifts = shifts.filter((s) => s.employeeId === employeeId && s.date === dateStr);
-      dayShifts.forEach((shift) => {
-        // Exclure les absences du calcul des heures
-        if (shift.status === 'absence_justified' || shift.status === 'absence_unjustified') {
-          return;
-        }
-        
+      const dayShifts = shifts.filter(s => s.employeeId === employeeId && s.date === dateStr);
+      dayShifts.forEach(shift => {
+        if (shift.status === 'absence_justified' || shift.status === 'absence_unjustified') return;
         const [sh, sm] = shift.startTime.split(':').map(Number);
         const [eh, em] = shift.endTime.split(':').map(Number);
         let minutes = eh * 60 + em - sh * 60 - sm;
         if (minutes < 0) minutes += 24 * 60;
         totalMinutes += minutes;
-        
-        // Calcul des heures de nuit
         nightMinutes += calculateNightHours(shift.startTime, shift.endTime) * 60;
       });
     });
 
-    // Calcul hebdomadaire pour déterminer les heures supplémentaires
-    // On simplifie en calculant le total mensuel puis en divisant par le nombre de semaines
     const totalHours = totalMinutes / 60;
     const weeksInMonth = getDaysInMonth(new Date(year, month - 1)) / 7;
     const avgWeeklyHours = totalHours / weeksInMonth;
-    
-    // Calcul des heures supplémentaires selon IDCC 1790
     const overtime = calculateOvertime(avgWeeklyHours);
-    const regularHours = overtime.regular * weeksInMonth;
-    const overtime25Hours = overtime.overtime25 * weeksInMonth;
-    const overtime50Hours = overtime.overtime50 * weeksInMonth;
-    const nightHours = nightMinutes / 60;
 
     return {
       totalHours,
-      regularHours,
-      overtime25Hours,
-      overtime50Hours,
-      nightHours,
+      regularHours: overtime.regular * weeksInMonth,
+      overtime25Hours: overtime.overtime25 * weeksInMonth,
+      overtime50Hours: overtime.overtime50 * weeksInMonth,
+      nightHours: nightMinutes / 60,
     };
   };
 
   const generatePaySlip = (employee: Employee): GeneratedPaySlip => {
-    const { totalHours, regularHours, overtime25Hours, overtime50Hours, nightHours } = calculateMonthlyHours(
-      employee.id,
-      selectedMonth,
-      selectedYear
-    );
-
-    // Salaire de base (heures régulières)
+    const { totalHours, regularHours, overtime25Hours, overtime50Hours, nightHours } = calculateMonthlyHours(employee.id, selectedMonth, selectedYear);
     const baseSalary = regularHours * employee.hourlyRate;
-    
-    // Heures supplémentaires 25% (36h à 43h)
     const overtime25Pay = overtime25Hours * employee.hourlyRate * 1.25;
-    
-    // Heures supplémentaires 50% (44h+)
     const overtime50Pay = overtime50Hours * employee.hourlyRate * 1.50;
-    
-    // Prime de nuit (1€ brut par heure de nuit)
     const nightBonus = nightHours * IDCC_1790_RULES.nightWorkBonus;
-    
-    // Salaire brut total
     const grossSalary = baseSalary + overtime25Pay + overtime50Pay + nightBonus;
-    
-    // Charges sociales (~22%)
     const socialCharges = grossSalary * 0.22;
     const netSalary = grossSalary - socialCharges;
 
     return {
       id: `payslip-${employee.id}-${selectedYear}-${selectedMonth}`,
-      employeeId: employee.id,
-      month: selectedMonth,
-      year: selectedYear,
-      totalHours,
-      regularHours,
-      overtime25Hours,
-      overtime50Hours,
-      nightHours,
-      baseSalary,
-      overtime25Pay,
-      overtime50Pay,
-      nightBonus,
-      grossSalary,
-      socialCharges,
-      netSalary,
-      generatedAt: new Date().toISOString(),
-      employee,
+      employeeId: employee.id, month: selectedMonth, year: selectedYear,
+      totalHours, regularHours, overtime25Hours, overtime50Hours, nightHours,
+      baseSalary, overtime25Pay, overtime50Pay, nightBonus,
+      grossSalary, socialCharges, netSalary,
+      generatedAt: new Date().toISOString(), employee,
     };
   };
 
   const handleGenerate = () => {
-    const employeesToProcess = selectedEmployee === 'all'
-      ? activeEmployees
-      : activeEmployees.filter((e) => e.id === selectedEmployee);
-
-    const slips = employeesToProcess.map((emp) => generatePaySlip(emp));
-    setGeneratedSlips(slips);
+    const toProcess = selectedEmployee === 'all' ? activeEmployees : activeEmployees.filter(e => e.id === selectedEmployee);
+    setGeneratedSlips(toProcess.map(emp => generatePaySlip(emp)));
   };
 
-  const generateExcel = (slips: GeneratedPaySlip[]) => {
-    console.log('Génération Excel - Début, nombre de bulletins:', slips.length);
-    
-    // Créer un workbook
+  const generateExcel = () => {
+    if (generatedSlips.length === 0) return;
     const wb = XLSX.utils.book_new();
-    console.log('Workbook créé');
-
-    // Feuille 1: Données brutes par employé
-    const detailData: Array<Array<string | number>> = [
-      ['DONNÉES BRUTES - NIGHT CLUB'],
-      ['Période', format(new Date(selectedYear, selectedMonth - 1), 'MMMM yyyy', { locale: fr })],
-      ['Date d\'export', format(new Date(), 'dd/MM/yyyy HH:mm')],
-      [],
-      [
-        'Nom',
-        'Prénom',
-        'N° Sécurité Sociale',
-        'Poste',
-        'Département',
-        'Type contrat',
-        'Date embauche',
-        'Heures totales travaillées',
-        'Heures normales',
-        'Heures sup. 25%',
-        'Heures sup. 50%',
-        'Heures de nuit',
-        'Nombre d\'absences justifiées',
-        'Nombre d\'absences injustifiées',
-      ]
+    const data = [
+      ['Nom', 'Prenom', 'Poste', 'Heures totales', 'Heures normales', 'HS 25%', 'HS 50%', 'Heures nuit', 'Brut', 'Charges', 'Net'],
+      ...generatedSlips.map(s => [
+        s.employee.lastName, s.employee.firstName, s.employee.position,
+        +s.totalHours.toFixed(2), +s.regularHours.toFixed(2), +s.overtime25Hours.toFixed(2),
+        +s.overtime50Hours.toFixed(2), +s.nightHours.toFixed(2),
+        +s.grossSalary.toFixed(2), +s.socialCharges.toFixed(2), +s.netSalary.toFixed(2),
+      ]),
     ];
-
-    slips.forEach(slip => {
-      // Compter les absences pour cet employé sur la période
-      const monthStart = startOfMonth(new Date(selectedYear, selectedMonth - 1));
-      const monthEnd = endOfMonth(new Date(selectedYear, selectedMonth - 1));
-      const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
-      
-      let absencesJustifiees = 0;
-      let absencesInjustifiees = 0;
-      
-      days.forEach((day) => {
-        const dateStr = format(day, 'yyyy-MM-dd');
-        const dayShifts = shifts.filter((s) => s.employeeId === slip.employeeId && s.date === dateStr);
-        dayShifts.forEach((shift) => {
-          if (shift.status === 'absence_justified') absencesJustifiees++;
-          if (shift.status === 'absence_unjustified') absencesInjustifiees++;
-        });
-      });
-      
-      detailData.push([
-        slip.employee.lastName,
-        slip.employee.firstName,
-        slip.employee.socialSecurityNumber,
-        slip.employee.position,
-        slip.employee.department,
-        slip.employee.contractType,
-        format(new Date(slip.employee.startDate), 'dd/MM/yyyy'),
-        Number(slip.totalHours.toFixed(2)),
-        Number(slip.regularHours.toFixed(2)),
-        Number(slip.overtime25Hours.toFixed(2)),
-        Number(slip.overtime50Hours.toFixed(2)),
-        Number(slip.nightHours.toFixed(2)),
-        absencesJustifiees,
-        absencesInjustifiees,
-      ]);
-    });
-
-    // Ligne de totaux
-    detailData.push([]);
-    detailData.push([
-      'TOTAUX',
-      '',
-      '',
-      '',
-      '',
-      '',
-      '',
-      Number(slips.reduce((sum, s) => sum + s.totalHours, 0).toFixed(2)),
-      Number(slips.reduce((sum, s) => sum + s.regularHours, 0).toFixed(2)),
-      Number(slips.reduce((sum, s) => sum + s.overtime25Hours, 0).toFixed(2)),
-      Number(slips.reduce((sum, s) => sum + s.overtime50Hours, 0).toFixed(2)),
-      Number(slips.reduce((sum, s) => sum + s.nightHours, 0).toFixed(2)),
-      '',
-      '',
-    ]);
-
-    const wsDetail = XLSX.utils.aoa_to_sheet(detailData);
-    
-    // Ajuster la largeur des colonnes
-    wsDetail['!cols'] = [
-      { wch: 15 }, // Nom
-      { wch: 15 }, // Prénom
-      { wch: 22 }, // N° SS
-      { wch: 20 }, // Poste
-      { wch: 18 }, // Département
-      { wch: 14 }, // Type contrat
-      { wch: 14 }, // Date embauche
-      { wch: 18 }, // Heures totales
-      { wch: 14 }, // Heures normales
-      { wch: 14 }, // HS 25%
-      { wch: 14 }, // HS 50%
-      { wch: 14 }, // Heures nuit
-      { wch: 20 }, // Abs. justifiées
-      { wch: 22 }, // Abs. injustifiées
-    ];
-
-    XLSX.utils.book_append_sheet(wb, wsDetail, 'Données brutes');
-
-    // Générer et télécharger le fichier
-    const fileName = `donnees_brutes_${selectedYear}_${String(selectedMonth).padStart(2, '0')}.xlsx`;
-    console.log('Écriture du fichier Excel:', fileName);
-    
-    try {
-      XLSX.writeFile(wb, fileName);
-      console.log('Fichier Excel écrit avec succès');
-    } catch (error) {
-      console.error('Erreur lors de l\'écriture du fichier Excel:', error);
-      throw error;
-    }
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(data), 'Paie');
+    XLSX.writeFile(wb, `paie_${selectedYear}_${String(selectedMonth).padStart(2, '0')}.xlsx`);
   };
 
-  const generateCSV = (slips: GeneratedPaySlip[]) => {
-    console.log('Génération CSV - Début');
-    
-    // Format CSV simplifié pour import rapide - données brutes uniquement
-    const headers = [
-      'Nom',
-      'Prénom',
-      'N° Sécurité Sociale',
-      'Poste',
-      'Département',
-      'Type contrat',
-      'Date embauche',
-      'Heures totales travaillées',
-      'Heures normales',
-      'Heures sup. 25%',
-      'Heures sup. 50%',
-      'Heures de nuit',
-      'Absences justifiées',
-      'Absences injustifiées',
-    ];
+  const months = ['Janvier', 'Fevrier', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Aout', 'Septembre', 'Octobre', 'Novembre', 'Decembre'];
 
-    const rows = slips.map(slip => {
-      // Compter les absences pour cet employé sur la période
-      const monthStart = startOfMonth(new Date(selectedYear, selectedMonth - 1));
-      const monthEnd = endOfMonth(new Date(selectedYear, selectedMonth - 1));
-      const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
-      
-      let absencesJustifiees = 0;
-      let absencesInjustifiees = 0;
-      
-      days.forEach((day) => {
-        const dateStr = format(day, 'yyyy-MM-dd');
-        const dayShifts = shifts.filter((s) => s.employeeId === slip.employeeId && s.date === dateStr);
-        dayShifts.forEach((shift) => {
-          if (shift.status === 'absence_justified') absencesJustifiees++;
-          if (shift.status === 'absence_unjustified') absencesInjustifiees++;
-        });
-      });
-      
-      return [
-        slip.employee.lastName,
-        slip.employee.firstName,
-        slip.employee.socialSecurityNumber,
-        slip.employee.position,
-        slip.employee.department,
-        slip.employee.contractType,
-        format(new Date(slip.employee.startDate), 'dd/MM/yyyy'),
-        slip.totalHours.toFixed(2),
-        slip.regularHours.toFixed(2),
-        slip.overtime25Hours.toFixed(2),
-        slip.overtime50Hours.toFixed(2),
-        slip.nightHours.toFixed(2),
-        String(absencesJustifiees),
-        String(absencesInjustifiees),
-      ];
-    });
-
-    const csvContent = [
-      headers.join(';'),
-      ...rows.map(row => row.join(';'))
-    ].join('\n');
-
-    console.log('Contenu CSV généré, longueur:', csvContent.length);
-
-    // Télécharger le CSV avec une approche plus fiable
-    const fileName = `donnees_brutes_${selectedYear}_${String(selectedMonth).padStart(2, '0')}.csv`;
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    
-    // Utiliser window.navigator.msSaveOrOpenBlob pour IE/Edge
-    if (window.navigator && (window.navigator as any).msSaveOrOpenBlob) {
-      (window.navigator as any).msSaveOrOpenBlob(blob, fileName);
-    } else {
-      // Pour les autres navigateurs
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      
-      // Forcer le clic
-      link.click();
-      
-      // Nettoyage
-      setTimeout(() => {
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-      }, 100);
-    }
-    
-    console.log('CSV téléchargé:', fileName);
+  const inputStyle: React.CSSProperties = {
+    padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-2)',
+    fontSize: 13, outline: 'none', background: 'white', width: '100%',
+  };
+  const labelStyle: React.CSSProperties = {
+    fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4, display: 'block',
   };
 
-  const generateAllExcel = () => {
-    try {
-      console.log('Export Excel - Nombre de bulletins:', generatedSlips.length);
-      if (generatedSlips.length === 0) {
-        alert('Aucun bulletin à exporter. Veuillez d\'abord calculer les bulletins.');
-        return;
-      }
-      generateExcel(generatedSlips);
-      console.log('Export Excel terminé avec succès');
-    } catch (error) {
-      console.error('Erreur lors de l\'export Excel:', error);
-      alert('Erreur lors de l\'export Excel. Consultez la console pour plus de détails.');
-    }
+  const deptColors: Record<string, string> = {
+    'Bar': 'var(--yellow)', 'Sécurité': 'var(--peach)', 'Accueil/Caisse': 'var(--green)',
+    'DJ/Animation': 'var(--violet)', 'Direction': 'var(--blue)',
   };
-
-  const generateAllCSV = () => {
-    try {
-      console.log('Export CSV - Nombre de bulletins:', generatedSlips.length);
-      if (generatedSlips.length === 0) {
-        alert('Aucun bulletin à exporter. Veuillez d\'abord calculer les bulletins.');
-        return;
-      }
-      generateCSV(generatedSlips);
-      console.log('Export CSV terminé avec succès');
-    } catch (error) {
-      console.error('Erreur lors de l\'export CSV:', error);
-      alert('Erreur lors de l\'export CSV. Consultez la console pour plus de détails.');
-    }
-  };
-
-  const months = [
-    'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-    'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
-  ];
 
   return (
-    <div className="p-6 lg:p-8">
+    <div style={{ padding: '26px 26px', background: 'var(--surface)', minHeight: '100%', animation: 'contentIn 500ms var(--ease-out) 250ms both' }}>
+
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-          <i className="fas fa-file-invoice-dollar text-purple-500"></i>
-          Fiches de paie - IDCC 1790
-        </h1>
-        <p className="text-gray-500 text-sm mt-1">Convention collective des espaces de loisirs, d'attractions et culturels</p>
+      <div style={{ marginBottom: 22 }}>
+        <h1 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.03em' }}>Fiches de paie</h1>
+        <p style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 3 }}>Convention IDCC 1790 — 35h, HS +25%/+50%, nuit +1€/h</p>
       </div>
 
-      {/* IDCC 1790 Rules Info */}
-      <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-6">
-        <h3 className="font-semibold text-purple-900 mb-2 flex items-center gap-2">
-          <i className="fas fa-info-circle"></i>
-          Règles IDCC 1790 appliquées
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-purple-800">
-          <div>
-            <p className="font-medium">Durée légale :</p>
-            <p>35h/semaine</p>
-          </div>
-          <div>
-            <p className="font-medium">Heures supplémentaires :</p>
-            <p>+25% (36-43h) / +50% (44h+)</p>
-          </div>
-          <div>
-            <p className="font-medium">Travail de nuit (21h-6h) :</p>
-            <p>+1€ brut/heure</p>
-          </div>
+      {/* Controls */}
+      <div style={{
+        background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 14,
+        padding: '20px 24px', marginBottom: 8,
+        display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 12, alignItems: 'end',
+      }}>
+        <div>
+          <label style={labelStyle}>Mois</label>
+          <select value={selectedMonth} onChange={e => setSelectedMonth(+e.target.value)} style={inputStyle}>
+            {months.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+          </select>
         </div>
-        <div className="mt-3 pt-3 border-t border-purple-200 text-sm text-purple-700">
-          <p className="font-medium mb-1">💡 Export données brutes :</p>
-          <p className="text-xs">Les exports contiennent uniquement les données brutes (heures, absences) pour traitement dans votre logiciel comptable</p>
-          <ul className="text-xs mt-1 ml-4 list-disc">
-            <li><strong>Excel</strong> : Données brutes par employé avec heures et absences</li>
-            <li><strong>CSV</strong> : Même format, compatible import rapide</li>
-          </ul>
+        <div>
+          <label style={labelStyle}>Annee</label>
+          <select value={selectedYear} onChange={e => setSelectedYear(+e.target.value)} style={inputStyle}>
+            {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 1 + i).map(y => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
         </div>
+        <div>
+          <label style={labelStyle}>Employe</label>
+          <select value={selectedEmployee} onChange={e => setSelectedEmployee(e.target.value)} style={inputStyle}>
+            <option value="all">Tous</option>
+            {activeEmployees.map(emp => <option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</option>)}
+          </select>
+        </div>
+        <button onClick={handleGenerate} style={{
+          padding: '8px 20px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+          border: 'none', background: '#1a1a1a', color: 'white', cursor: 'pointer',
+          height: 37,
+        }}>
+          Calculer
+        </button>
       </div>
 
-      {/* Generator Controls */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
-        <h2 className="text-lg font-bold text-gray-800 mb-4">Paramètres de génération</h2>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Mois</label>
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500"
-            >
-              {months.map((m, i) => (
-                <option key={i} value={i + 1}>{m}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Année</label>
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500"
-            >
-              {[2024, 2025, 2026].map((y) => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Employé</label>
-            <select
-              value={selectedEmployee}
-              onChange={(e) => setSelectedEmployee(e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500"
-            >
-              <option value="all">Tous les employés</option>
-              {activeEmployees.map((emp) => (
-                <option key={emp.id} value={emp.id}>
-                  {emp.firstName} {emp.lastName}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-end">
-            <button
-              onClick={handleGenerate}
-              className="w-full px-4 py-2.5 bg-gradient-to-r from-purple-500 to-violet-600 text-white font-medium rounded-xl shadow hover:shadow-lg transition-all"
-            >
-              <i className="fas fa-calculator mr-2"></i>Calculer
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Generated Pay Slips */}
+      {/* Results */}
       {generatedSlips.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-6 border-b border-gray-100">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
-              <h2 className="text-lg font-bold text-gray-800">
-                Bulletins - {months[selectedMonth - 1]} {selectedYear}
-              </h2>
-              <div className="flex gap-2">
-                <button
-                  onClick={generateAllExcel}
-                  className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-medium rounded-xl shadow hover:shadow-lg transition-all flex items-center"
-                >
-                  <i className="fas fa-file-excel mr-2"></i>Export Excel
-                </button>
-                <button
-                  onClick={generateAllCSV}
-                  className="px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-600 text-white text-sm font-medium rounded-xl shadow hover:shadow-lg transition-all flex items-center"
-                >
-                  <i className="fas fa-file-csv mr-2"></i>Export CSV
-                </button>
-              </div>
+        <div style={{
+          background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 14,
+          overflow: 'hidden',
+        }}>
+          {/* Summary bar */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '16px 24px', borderBottom: '1px solid var(--border)',
+          }}>
+            <div style={{ display: 'flex', gap: 24 }}>
+              <Stat label="Masse brute" value={`${generatedSlips.reduce((s, sl) => s + sl.grossSalary, 0).toFixed(0)}€`} />
+              <Stat label="Total charges" value={`${generatedSlips.reduce((s, sl) => s + sl.socialCharges, 0).toFixed(0)}€`} color="var(--peach)" />
+              <Stat label="Masse nette" value={`${generatedSlips.reduce((s, sl) => s + sl.netSalary, 0).toFixed(0)}€`} color="var(--green)" />
             </div>
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
-              <i className="fas fa-check-circle mr-2"></i>
-              <strong>{generatedSlips.length} bulletin(s) calculé(s)</strong> - Cliquez sur les boutons d'export pour télécharger les fichiers
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={generateExcel} style={{
+                padding: '6px 12px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                border: '1px solid var(--border-2)', background: 'white', color: '#444', cursor: 'pointer',
+              }}>Export Excel</button>
             </div>
           </div>
 
-          <div className="divide-y divide-gray-50">
-            {generatedSlips.map((slip) => (
-              <div key={slip.id} className="p-5 hover:bg-gray-50/50 transition-colors">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-violet-500 rounded-xl flex items-center justify-center text-white font-bold">
-                      {slip.employee.firstName[0]}{slip.employee.lastName[0]}
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-gray-800">
-                        {slip.employee.firstName} {slip.employee.lastName}
-                      </h3>
-                      <p className="text-sm text-gray-500">{slip.employee.position} • {slip.employee.department}</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-6 gap-3 text-sm">
-                    <div className="text-center">
-                      <p className="text-gray-400 text-xs">Total</p>
-                      <p className="font-bold text-gray-800">{slip.totalHours.toFixed(1)}h</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-gray-400 text-xs">HS 25%</p>
-                      <p className="font-bold text-orange-600">{slip.overtime25Hours.toFixed(1)}h</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-gray-400 text-xs">HS 50%</p>
-                      <p className="font-bold text-red-600">{slip.overtime50Hours.toFixed(1)}h</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-gray-400 text-xs">Nuit</p>
-                      <p className="font-bold text-purple-600">{slip.nightHours.toFixed(1)}h</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-gray-400 text-xs">Brut</p>
-                      <p className="font-bold text-gray-800">{slip.grossSalary.toFixed(0)}€</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-gray-400 text-xs">Net</p>
-                      <p className="font-bold text-green-600 text-lg">{slip.netSalary.toFixed(0)}€</p>
-                    </div>
-                  </div>
-
-
-                </div>
-
-                {/* Detail breakdown */}
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3">
-                  <div className="bg-gray-50 rounded-xl p-3">
-                    <p className="text-xs text-gray-400 mb-1">Heures normales</p>
-                    <p className="font-semibold text-gray-700">
-                      {slip.regularHours.toFixed(1)}h × {slip.employee.hourlyRate.toFixed(2)}€ = {slip.baseSalary.toFixed(2)}€
-                    </p>
-                  </div>
-                  {slip.overtime25Hours > 0 && (
-                    <div className="bg-orange-50 rounded-xl p-3">
-                      <p className="text-xs text-orange-500 mb-1">Heures sup. 25%</p>
-                      <p className="font-semibold text-orange-700">
-                        {slip.overtime25Hours.toFixed(1)}h × {(slip.employee.hourlyRate * 1.25).toFixed(2)}€ = {slip.overtime25Pay.toFixed(2)}€
-                      </p>
-                    </div>
-                  )}
-                  {slip.overtime50Hours > 0 && (
-                    <div className="bg-red-50 rounded-xl p-3">
-                      <p className="text-xs text-red-500 mb-1">Heures sup. 50%</p>
-                      <p className="font-semibold text-red-700">
-                        {slip.overtime50Hours.toFixed(1)}h × {(slip.employee.hourlyRate * 1.50).toFixed(2)}€ = {slip.overtime50Pay.toFixed(2)}€
-                      </p>
-                    </div>
-                  )}
-                  {slip.nightHours > 0 && (
-                    <div className="bg-purple-50 rounded-xl p-3">
-                      <p className="text-xs text-purple-500 mb-1">Prime de nuit</p>
-                      <p className="font-semibold text-purple-700">
-                        {slip.nightHours.toFixed(1)}h × {IDCC_1790_RULES.nightWorkBonus.toFixed(2)}€ = {slip.nightBonus.toFixed(2)}€
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
+          {/* Table header */}
+          <div style={{
+            display: 'grid', gridTemplateColumns: '1fr 80px 70px 70px 70px 90px 90px',
+            gap: 8, padding: '10px 24px', borderBottom: '1px solid var(--border)',
+          }}>
+            {['Employe', 'Total h', 'HS 25%', 'HS 50%', 'Nuit', 'Brut', 'Net'].map(h => (
+              <span key={h} style={{
+                fontSize: 10.5, fontWeight: 600, color: 'var(--text-dim)',
+                letterSpacing: '0.05em', textTransform: 'uppercase',
+              }}>{h}</span>
             ))}
           </div>
 
-          {/* Summary */}
-          <div className="p-6 bg-gradient-to-r from-gray-50 to-gray-100 border-t border-gray-200">
-            <div className="flex flex-wrap items-center justify-center gap-8">
-              <div className="text-center">
-                <p className="text-sm text-gray-500">Masse salariale brute</p>
-                <p className="text-xl font-bold text-gray-800">
-                  {generatedSlips.reduce((sum, s) => sum + s.grossSalary, 0).toFixed(2)}€
-                </p>
+          {/* Rows */}
+          {generatedSlips.map((slip, i) => (
+            <div key={slip.id} style={{
+              display: 'grid', gridTemplateColumns: '1fr 80px 70px 70px 70px 90px 90px',
+              gap: 8, alignItems: 'center', padding: '14px 24px',
+              borderBottom: i < generatedSlips.length - 1 ? '1px solid var(--border)' : 'none',
+              transition: 'background 120ms ease',
+              animation: `fadeInUp 350ms var(--ease-out) ${i * 40}ms both`,
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 28, height: 28, borderRadius: '50%',
+                  background: deptColors[slip.employee.department] || 'var(--text-muted)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 10, fontWeight: 700, color: 'white', flexShrink: 0,
+                }}>{slip.employee.firstName[0]}{slip.employee.lastName[0]}</div>
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{slip.employee.firstName} {slip.employee.lastName}</p>
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>{slip.employee.position}</p>
+                </div>
               </div>
-              <div className="text-center">
-                <p className="text-sm text-gray-500">Total charges</p>
-                <p className="text-xl font-bold text-red-500">
-                  {generatedSlips.reduce((sum, s) => sum + s.socialCharges, 0).toFixed(2)}€
-                </p>
-              </div>
-              <div className="text-center">
-                <p className="text-sm text-gray-500">Masse salariale nette</p>
-                <p className="text-xl font-bold text-green-600">
-                  {generatedSlips.reduce((sum, s) => sum + s.netSalary, 0).toFixed(2)}€
-                </p>
-              </div>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{slip.totalHours.toFixed(1)}h</span>
+              <span style={{ fontSize: 12, color: slip.overtime25Hours > 0 ? 'var(--yellow)' : 'var(--text-dim)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{slip.overtime25Hours.toFixed(1)}h</span>
+              <span style={{ fontSize: 12, color: slip.overtime50Hours > 0 ? 'var(--peach)' : 'var(--text-dim)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{slip.overtime50Hours.toFixed(1)}h</span>
+              <span style={{ fontSize: 12, color: slip.nightHours > 0 ? 'var(--violet)' : 'var(--text-dim)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{slip.nightHours.toFixed(1)}h</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{slip.grossSalary.toFixed(0)}€</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)', fontVariantNumeric: 'tabular-nums' }}>{slip.netSalary.toFixed(0)}€</span>
             </div>
-          </div>
+          ))}
         </div>
       )}
 
       {generatedSlips.length === 0 && (
-        <div className="text-center py-16 bg-white rounded-2xl shadow-sm border border-gray-100">
-          <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
-            <i className="fas fa-calculator text-2xl text-gray-400"></i>
-          </div>
-          <p className="text-gray-500 font-medium">Sélectionnez un mois et cliquez sur "Calculer"</p>
-          <p className="text-gray-400 text-sm mt-1">pour générer les fiches de paie selon l'IDCC 1790</p>
+        <div style={{
+          background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 14,
+          padding: '48px 0', textAlign: 'center',
+        }}>
+          <p style={{ fontSize: 13, color: 'var(--text-dim)', fontWeight: 500 }}>Selectionnez un mois et cliquez sur "Calculer"</p>
         </div>
       )}
+    </div>
+  );
+}
+
+function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <div>
+      <p style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 2 }}>{label}</p>
+      <p style={{ fontSize: 16, fontWeight: 800, color: color || 'var(--text)', letterSpacing: '-0.03em' }}>{value}</p>
     </div>
   );
 }

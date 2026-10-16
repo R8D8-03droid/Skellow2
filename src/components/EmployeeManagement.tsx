@@ -14,18 +14,17 @@ export default function EmployeeManagement({ employees, onUpdateEmployees }: Emp
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('all');
 
-  const departments = [...new Set(employees.map((e) => e.department))];
+  const departments = [...new Set(employees.map(e => e.department))];
 
-  const filteredEmployees = employees.filter((e) => {
+  const filteredEmployees = employees.filter(e => {
     const matchSearch = `${e.firstName} ${e.lastName} ${e.email} ${e.position}`
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase());
+      .toLowerCase().includes(searchTerm.toLowerCase());
     const matchDept = filterDepartment === 'all' || e.department === filterDepartment;
     return matchSearch && matchDept;
   });
 
   const handleSave = (employee: Employee) => {
-    const existing = employees.findIndex((e) => e.id === employee.id);
+    const existing = employees.findIndex(e => e.id === employee.id);
     if (existing >= 0) {
       const updated = [...employees];
       updated[existing] = employee;
@@ -38,138 +37,142 @@ export default function EmployeeManagement({ employees, onUpdateEmployees }: Emp
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Êtes-vous sûr de vouloir supprimer cet employé ?')) {
-      onUpdateEmployees(employees.filter((e) => e.id !== id));
+    if (confirm('Supprimer cet employe ?')) {
+      onUpdateEmployees(employees.filter(e => e.id !== id));
     }
   };
 
   const handleToggleActive = (id: string) => {
-    const updated = employees.map((e) =>
-      e.id === id ? { ...e, active: !e.active } : e
-    );
-    onUpdateEmployees(updated);
+    onUpdateEmployees(employees.map(e => e.id === id ? { ...e, active: !e.active } : e));
+  };
+
+  const deptColors: Record<string, string> = {
+    'Bar': 'var(--yellow)', 'Sécurité': 'var(--peach)', 'Accueil/Caisse': 'var(--green)',
+    'DJ/Animation': 'var(--violet)', 'Direction': 'var(--blue)', 'Vestiaire': 'var(--yellow)',
+    'Ménage/Entretien': 'var(--peach)',
   };
 
   return (
-    <div className="p-6 lg:p-8">
+    <div style={{ padding: '26px 26px', background: 'var(--surface)', minHeight: '100%', animation: 'contentIn 500ms var(--ease-out) 250ms both' }}>
+
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6 gap-4">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
         <div>
-          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            <i className="fas fa-users text-purple-500"></i>
-            Gestion des employés
-          </h1>
-          <p className="text-gray-500 text-sm mt-1">{employees.filter(e => e.active).length} employés actifs</p>
+          <h1 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.03em' }}>Employes</h1>
+          <p style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 3 }}>{employees.filter(e => e.active).length} actifs</p>
         </div>
-        <button
-          onClick={() => { setEditingEmployee(null); setShowForm(true); }}
-          className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-medium rounded-xl shadow hover:shadow-lg transition-all"
-        >
-          <i className="fas fa-user-plus mr-2"></i>Nouvel employé
+        <button onClick={() => { setEditingEmployee(null); setShowForm(true); }} style={{
+          fontSize: 12, fontWeight: 600, color: 'var(--panel)',
+          background: 'var(--text)', border: 'none',
+          borderRadius: 8, padding: '7px 16px', cursor: 'pointer',
+        }}>
+          + Nouvel employe
         </button>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <div className="relative flex-1">
-          <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <div style={{ flex: 1, position: 'relative' }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="#aaa" strokeWidth="1.8" width="15" height="15"
+            style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}>
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
           <input
-            type="text"
-            placeholder="Rechercher un employé..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 bg-white"
+            type="text" placeholder="Rechercher..."
+            value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+            style={{
+              width: '100%', padding: '8px 12px 8px 36px', borderRadius: 8,
+              border: '1px solid var(--border-2)', fontSize: 13, outline: 'none', background: 'white',
+              transition: 'border-color 150ms ease',
+            }}
+            onFocus={e => (e.currentTarget.style.borderColor = 'var(--text)')}
+            onBlur={e => (e.currentTarget.style.borderColor = 'var(--border-2)')}
           />
         </div>
-        <select
-          value={filterDepartment}
-          onChange={(e) => setFilterDepartment(e.target.value)}
-          className="px-4 py-2.5 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-amber-500"
-        >
-          <option value="all">Tous les départements</option>
-          {departments.map((dept) => (
-            <option key={dept} value={dept}>{dept}</option>
-          ))}
+        <select value={filterDepartment} onChange={e => setFilterDepartment(e.target.value)} style={{
+          padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-2)',
+          fontSize: 13, background: 'white', outline: 'none', cursor: 'pointer',
+        }}>
+          <option value="all">Tous</option>
+          {departments.map(d => <option key={d} value={d}>{d}</option>)}
         </select>
       </div>
 
-      {/* Employee Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {filteredEmployees.map((employee) => (
-          <div
-            key={employee.id}
-            className={`bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-all ${
-              !employee.active ? 'opacity-60' : ''
-            }`}
+      {/* Table */}
+      <div style={{
+        background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 14,
+        overflow: 'hidden',
+      }}>
+        {/* Table header */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: '1fr 120px 100px 100px 140px',
+          gap: 8, padding: '12px 20px', borderBottom: '1px solid var(--border)',
+        }}>
+          {['Employe', 'Departement', 'Contrat', 'Taux', 'Actions'].map(h => (
+            <span key={h} style={{
+              fontSize: 10.5, fontWeight: 600, color: 'var(--text-dim)',
+              letterSpacing: '0.05em', textTransform: 'uppercase',
+            }}>{h}</span>
+          ))}
+        </div>
+
+        {/* Rows */}
+        {filteredEmployees.map((emp, i) => (
+          <div key={emp.id} style={{
+            display: 'grid', gridTemplateColumns: '1fr 120px 100px 100px 140px',
+            gap: 8, alignItems: 'center', padding: '12px 20px',
+            borderBottom: i < filteredEmployees.length - 1 ? '1px solid var(--border)' : 'none',
+            opacity: emp.active ? 1 : 0.5,
+            transition: 'background 120ms ease',
+            cursor: 'pointer',
+            animation: `fadeInUp 350ms var(--ease-out) ${i * 30}ms both`,
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+          onClick={() => { setEditingEmployee(emp); setShowForm(true); }}
           >
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center text-white font-bold">
-                  {employee.firstName[0]}{employee.lastName[0]}
-                </div>
-                <div>
-                  <h3 className="font-bold text-gray-800">
-                    {employee.firstName} {employee.lastName}
-                  </h3>
-                  <p className="text-sm text-gray-500">{employee.position}</p>
-                </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: '50%',
+                background: deptColors[emp.department] || 'var(--text-muted)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 10, fontWeight: 700, color: 'white', flexShrink: 0,
+              }}>
+                {emp.firstName[0]}{emp.lastName[0]}
               </div>
-              <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                employee.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-              }`}>
-                {employee.active ? 'Actif' : 'Inactif'}
-              </span>
-            </div>
-
-            <div className="space-y-2 text-sm text-gray-600 mb-4">
-              <div className="flex items-center gap-2">
-                <i className="fas fa-building w-4 text-gray-400"></i>
-                <span>{employee.department}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <i className="fas fa-file-contract w-4 text-gray-400"></i>
-                <span>{employee.contractType} • {employee.hourlyRate}€/h</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <i className="fas fa-envelope w-4 text-gray-400"></i>
-                <span className="truncate">{employee.email}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <i className="fas fa-phone w-4 text-gray-400"></i>
-                <span>{employee.phone}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <i className="fas fa-calendar w-4 text-gray-400"></i>
-                <span>Depuis le {format(new Date(employee.startDate), 'dd/MM/yyyy')}</span>
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{emp.firstName} {emp.lastName}</p>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>{emp.position}</p>
               </div>
             </div>
-
-            <div className="flex gap-2 pt-3 border-t border-gray-100">
-              <button
-                onClick={() => { setEditingEmployee(employee); setShowForm(true); }}
-                className="flex-1 px-3 py-2 text-sm text-amber-600 hover:bg-amber-50 rounded-lg transition-colors font-medium"
-              >
-                <i className="fas fa-edit mr-1"></i>Modifier
-              </button>
-              <button
-                onClick={() => handleToggleActive(employee.id)}
-                className="flex-1 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors font-medium"
-              >
-                <i className={`fas ${employee.active ? 'fa-user-slash' : 'fa-user-check'} mr-1`}></i>
-                {employee.active ? 'Désactiver' : 'Activer'}
-              </button>
-              <button
-                onClick={() => handleDelete(employee.id)}
-                className="px-3 py-2 text-sm text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-              >
-                <i className="fas fa-trash"></i>
-              </button>
+            <span style={{
+              fontSize: 10.5, fontWeight: 600, padding: '3px 8px', borderRadius: 5,
+              background: `${deptColors[emp.department] || 'var(--text-muted)'}18`,
+              color: deptColors[emp.department] || 'var(--text-muted)',
+            }}>
+              {emp.department.split('/')[0]}
+            </span>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{emp.contractType}</span>
+            <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+              {emp.hourlyRate.toFixed(2)}€/h
+            </span>
+            <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
+              <SmallBtn onClick={() => handleToggleActive(emp.id)} color={emp.active ? 'var(--text-muted)' : 'var(--green)'}>
+                {emp.active ? 'Desactiver' : 'Activer'}
+              </SmallBtn>
+              <SmallBtn onClick={() => handleDelete(emp.id)} color="var(--red)">Suppr.</SmallBtn>
             </div>
           </div>
         ))}
+
+        {filteredEmployees.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '32px 0' }}>
+            <p style={{ fontSize: 13, color: 'var(--text-dim)' }}>Aucun employe trouve</p>
+          </div>
+        )}
       </div>
 
-      {/* Employee Form Modal */}
+      {/* Form modal */}
       {showForm && (
         <EmployeeFormModal
           employee={editingEmployee}
@@ -181,39 +184,36 @@ export default function EmployeeManagement({ employees, onUpdateEmployees }: Emp
   );
 }
 
-interface EmployeeFormModalProps {
-  employee: Employee | null;
-  onSave: (employee: Employee) => void;
-  onClose: () => void;
+function SmallBtn({ onClick, color, children }: { onClick: () => void; color: string; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick} style={{
+      fontSize: 11, fontWeight: 600, padding: '4px 8px', borderRadius: 5,
+      border: 'none', background: `${color}12`, color,
+      cursor: 'pointer', transition: 'background 150ms ease',
+    }}
+    onMouseEnter={e => (e.currentTarget.style.background = `${color}22`)}
+    onMouseLeave={e => (e.currentTarget.style.background = `${color}12`)}
+    >
+      {children}
+    </button>
+  );
 }
 
-function EmployeeFormModal({ employee, onSave, onClose }: EmployeeFormModalProps) {
+function EmployeeFormModal({ employee, onSave, onClose }: {
+  employee: Employee | null; onSave: (e: Employee) => void; onClose: () => void;
+}) {
   const [form, setForm] = useState<Partial<Employee>>(
     employee || {
-      firstName: '',
-      lastName: '',
-      email: '',
-      phone: '',
-      position: '',
-      department: 'Salle',
-      contractType: 'CDI',
-      startDate: format(new Date(), 'yyyy-MM-dd'),
-      endDate: '',
-      hourlyRate: 11.5,
-      monthlyHours: 151.67,
-      socialSecurityNumber: '',
-      address: '',
-      postalCode: '',
-      city: '',
-      bankRIB: '',
-      password: '',
-      role: 'employee',
-      active: true,
+      firstName: '', lastName: '', email: '', phone: '', position: '',
+      department: 'Bar', contractType: 'CDI', startDate: format(new Date(), 'yyyy-MM-dd'),
+      hourlyRate: 11.65, monthlyHours: 151.67, socialSecurityNumber: '',
+      address: '', postalCode: '', city: '', bankRIB: '', password: '',
+      role: 'employee', active: true,
     }
   );
 
   const handleChange = (field: keyof Employee, value: string | number | boolean) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
+    setForm(prev => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -221,246 +221,85 @@ function EmployeeFormModal({ employee, onSave, onClose }: EmployeeFormModalProps
     onSave(form as Employee);
   };
 
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '8px 12px', borderRadius: 8,
+    border: '1px solid var(--border-2)', fontSize: 13, outline: 'none', background: 'white',
+    transition: 'border-color 150ms ease',
+  };
+  const labelStyle: React.CSSProperties = {
+    fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4, display: 'block',
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-100 p-6 rounded-t-2xl">
-          <h2 className="text-xl font-bold text-gray-800">
-            {employee ? 'Modifier l\'employé' : 'Nouvel employé'}
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 50,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(4px)',
+      animation: 'fadeIn 200ms ease both',
+    }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: 'white', borderRadius: 16, width: '100%', maxWidth: 560,
+        maxHeight: '85vh', overflowY: 'auto',
+        boxShadow: '0 24px 80px rgba(0,0,0,0.15)',
+        animation: 'fadeInUp 300ms var(--ease-out) both',
+      }}>
+        <div style={{ padding: '24px 28px 0', position: 'sticky', top: 0, background: 'white', borderRadius: '16px 16px 0 0', zIndex: 1 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', marginBottom: 20 }}>
+            {employee ? 'Modifier' : 'Nouvel employe'}
           </h2>
         </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* Personal Info */}
-          <div>
-            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Informations personnelles</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Prénom *</label>
-                <input
-                  type="text"
-                  value={form.firstName || ''}
-                  onChange={(e) => handleChange('firstName', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nom *</label>
-                <input
-                  type="text"
-                  value={form.lastName || ''}
-                  onChange={(e) => handleChange('lastName', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-                <input
-                  type="email"
-                  value={form.email || ''}
-                  onChange={(e) => handleChange('email', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone *</label>
-                <input
-                  type="tel"
-                  value={form.phone || ''}
-                  onChange={(e) => handleChange('phone', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500"
-                  required
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">N° Sécurité Sociale</label>
-                <input
-                  type="text"
-                  value={form.socialSecurityNumber || ''}
-                  onChange={(e) => handleChange('socialSecurityNumber', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500"
-                  placeholder="X XX XX XX XXX XXX XX"
-                />
-              </div>
+        <form onSubmit={handleSubmit} style={{ padding: '0 28px 28px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div><label style={labelStyle}>Prenom</label><input type="text" value={form.firstName || ''} onChange={e => handleChange('firstName', e.target.value)} style={inputStyle} required /></div>
+            <div><label style={labelStyle}>Nom</label><input type="text" value={form.lastName || ''} onChange={e => handleChange('lastName', e.target.value)} style={inputStyle} required /></div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div><label style={labelStyle}>Email</label><input type="email" value={form.email || ''} onChange={e => handleChange('email', e.target.value)} style={inputStyle} required /></div>
+            <div><label style={labelStyle}>Telephone</label><input type="tel" value={form.phone || ''} onChange={e => handleChange('phone', e.target.value)} style={inputStyle} required /></div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div><label style={labelStyle}>Poste</label><input type="text" value={form.position || ''} onChange={e => handleChange('position', e.target.value)} style={inputStyle} required /></div>
+            <div>
+              <label style={labelStyle}>Departement</label>
+              <select value={form.department || 'Bar'} onChange={e => handleChange('department', e.target.value)} style={inputStyle}>
+                {['Bar', 'Sécurité', 'Accueil/Caisse', 'Vestiaire', 'DJ/Animation', 'Direction', 'Ménage/Entretien'].map(d => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+            <div>
+              <label style={labelStyle}>Contrat</label>
+              <select value={form.contractType || 'CDI'} onChange={e => handleChange('contractType', e.target.value)} style={inputStyle}>
+                {['CDI', 'CDD', 'Alternance', 'Stage'].map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div><label style={labelStyle}>Taux horaire</label><input type="number" step="0.01" value={form.hourlyRate || ''} onChange={e => handleChange('hourlyRate', parseFloat(e.target.value))} style={inputStyle} required /></div>
+            <div><label style={labelStyle}>Heures/mois</label><input type="number" step="0.01" value={form.monthlyHours || 151.67} onChange={e => handleChange('monthlyHours', parseFloat(e.target.value))} style={inputStyle} /></div>
+          </div>
+          <div><label style={labelStyle}>Date embauche</label><input type="date" value={form.startDate || ''} onChange={e => handleChange('startDate', e.target.value)} style={inputStyle} required /></div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div><label style={labelStyle}>Mot de passe</label><input type="password" value={form.password || ''} onChange={e => handleChange('password', e.target.value)} style={inputStyle} required={!employee} placeholder={employee ? 'Inchange' : ''} /></div>
+            <div>
+              <label style={labelStyle}>Role</label>
+              <select value={form.role || 'employee'} onChange={e => handleChange('role', e.target.value)} style={inputStyle}>
+                <option value="employee">Employe</option>
+                <option value="admin">Admin</option>
+              </select>
             </div>
           </div>
 
-          {/* Address */}
-          <div>
-            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Adresse</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="md:col-span-3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
-                <input
-                  type="text"
-                  value={form.address || ''}
-                  onChange={(e) => handleChange('address', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Code postal</label>
-                <input
-                  type="text"
-                  value={form.postalCode || ''}
-                  onChange={(e) => handleChange('postalCode', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ville</label>
-                <input
-                  type="text"
-                  value={form.city || ''}
-                  onChange={(e) => handleChange('city', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Contract Info */}
-          <div>
-            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Contrat</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Poste *</label>
-                <input
-                  type="text"
-                  value={form.position || ''}
-                  onChange={(e) => handleChange('position', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Département *</label>
-                <select
-                  value={form.department || 'Bar'}
-                  onChange={(e) => handleChange('department', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500"
-                >
-                  <option value="Bar">Bar</option>
-                  <option value="Sécurité">Sécurité</option>
-                  <option value="Accueil/Caisse">Accueil/Caisse</option>
-                  <option value="Vestiaire">Vestiaire</option>
-                  <option value="DJ/Animation">DJ/Animation</option>
-                  <option value="Direction">Direction</option>
-                  <option value="Ménage/Entretien">Ménage/Entretien</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Type de contrat *</label>
-                <select
-                  value={form.contractType || 'CDI'}
-                  onChange={(e) => handleChange('contractType', e.target.value as Employee['contractType'])}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500"
-                >
-                  <option value="CDI">CDI</option>
-                  <option value="CDD">CDD</option>
-                  <option value="Alternance">Alternance</option>
-                  <option value="Stage">Stage</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Date d'embauche *</label>
-                <input
-                  type="date"
-                  value={form.startDate || ''}
-                  onChange={(e) => handleChange('startDate', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Date de fin (si CDD)</label>
-                <input
-                  type="date"
-                  value={form.endDate || ''}
-                  onChange={(e) => handleChange('endDate', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Taux horaire (€) *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={form.hourlyRate || ''}
-                  onChange={(e) => handleChange('hourlyRate', parseFloat(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Heures mensuelles</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={form.monthlyHours || 151.67}
-                  onChange={(e) => handleChange('monthlyHours', parseFloat(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Bank & Access */}
-          <div>
-            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Paiement & Accès</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">RIB / IBAN</label>
-                <input
-                  type="text"
-                  value={form.bankRIB || ''}
-                  onChange={(e) => handleChange('bankRIB', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Mot de passe *</label>
-                <input
-                  type="text"
-                  value={form.password || ''}
-                  onChange={(e) => handleChange('password', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500"
-                  required={!employee}
-                  placeholder={employee ? 'Laisser vide pour ne pas changer' : ''}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Rôle</label>
-                <select
-                  value={form.role || 'employee'}
-                  onChange={(e) => handleChange('role', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500"
-                >
-                  <option value="employee">Employé</option>
-                  <option value="admin">Administrateur</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex gap-3 pt-4 border-t border-gray-100">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-medium"
-            >
-              Annuler
-            </button>
-            <button
-              type="submit"
-              className="flex-1 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-xl hover:shadow-lg transition-all font-medium"
-            >
-              {employee ? 'Mettre à jour' : 'Créer l\'employé'}
-            </button>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <div style={{ flex: 1 }} />
+            <button type="button" onClick={onClose} style={{
+              padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+              border: '1px solid var(--border-2)', background: 'white', color: '#444', cursor: 'pointer',
+            }}>Annuler</button>
+            <button type="submit" style={{
+              padding: '8px 20px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+              border: 'none', background: '#1a1a1a', color: 'white', cursor: 'pointer',
+            }}>{employee ? 'Enregistrer' : 'Creer'}</button>
           </div>
         </form>
       </div>

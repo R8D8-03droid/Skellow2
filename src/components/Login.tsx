@@ -23,82 +23,97 @@ export default function Login({ employees, onLogin }: LoginProps) {
     }
   };
 
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '10px 14px', borderRadius: 10,
+    border: '1px solid var(--border-2)', fontSize: 14,
+    outline: 'none', background: 'white',
+    transition: 'border-color 200ms ease, box-shadow 200ms ease',
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50">
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-amber-200/30 rounded-full blur-3xl"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-rose-200/30 rounded-full blur-3xl"></div>
-      </div>
-      
-      <div className="relative bg-white/80 backdrop-blur-xl rounded-2xl shadow-2xl p-8 w-full max-w-md border border-white/50">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500 to-violet-600 rounded-xl shadow-lg mb-4">
-            <i className="fas fa-music text-white text-2xl"></i>
+    <div style={{
+      height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: '#dedad4',
+    }}>
+      <div style={{
+        background: 'white', borderRadius: 20, padding: 40, width: '100%', maxWidth: 400,
+        boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.06)',
+        animation: 'panelIn 600ms var(--ease-out) both',
+      }}>
+        {/* Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 32 }}>
+          <div style={{
+            width: 40, height: 40, background: '#1a1a1a', borderRadius: 11,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3,
+          }}>
+            <span style={{ width: 5, height: 5, background: 'white', borderRadius: '50%' }} />
+            <span style={{ width: 4, height: 4, background: 'white', borderRadius: '50%' }} />
+            <span style={{ width: 4, height: 4, background: 'white', borderRadius: '50%' }} />
           </div>
-          <h1 className="text-2xl font-bold text-gray-800">Night Club</h1>
-          <p className="text-gray-500 mt-1">Planning & Paie - Convention IDCC 1790</p>
+          <div>
+            <h1 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.03em' }}>Skellow</h1>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>Night Club Planning</p>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <div className="relative">
-              <i className="fas fa-envelope absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => { setEmail(e.target.value); setError(''); }}
-                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all bg-white/70"
-                placeholder="votre@email.fr"
-                required
-              />
-            </div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>Email</label>
+            <input
+              type="email" value={email}
+              onChange={e => { setEmail(e.target.value); setError(''); }}
+              style={inputStyle} placeholder="votre@email.fr" required
+              onFocus={e => { e.currentTarget.style.borderColor = 'var(--text)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(0,0,0,0.04)'; }}
+              onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-2)'; e.currentTarget.style.boxShadow = 'none'; }}
+            />
           </div>
-
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Mot de passe</label>
-            <div className="relative">
-              <i className="fas fa-lock absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all bg-white/70"
-                placeholder="••••••••"
-                required
-              />
-            </div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>Mot de passe</label>
+            <input
+              type="password" value={password}
+              onChange={e => { setPassword(e.target.value); setError(''); }}
+              style={inputStyle} placeholder="••••••••" required
+              onFocus={e => { e.currentTarget.style.borderColor = 'var(--text)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(0,0,0,0.04)'; }}
+              onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-2)'; e.currentTarget.style.boxShadow = 'none'; }}
+            />
           </div>
 
           {error && (
-            <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-lg text-sm">
-              <i className="fas fa-exclamation-circle"></i>
-              <span>{error}</span>
+            <div style={{
+              padding: '10px 14px', borderRadius: 8,
+              background: 'rgba(217,48,37,0.06)', border: '1px solid rgba(217,48,37,0.15)',
+              fontSize: 13, color: 'var(--red)', fontWeight: 500,
+            }}>
+              {error}
             </div>
           )}
 
-          <button
-            type="submit"
-            className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-amber-600 hover:to-orange-700 transition-all transform hover:-translate-y-0.5"
-          >
+          <button type="submit" style={{
+            width: '100%', padding: '11px 0', borderRadius: 10,
+            background: '#1a1a1a', color: 'white', border: 'none',
+            fontSize: 14, fontWeight: 600, cursor: 'pointer',
+            transition: 'background 150ms ease, transform 100ms var(--ease-out)',
+          }}>
             Se connecter
           </button>
         </form>
 
-        <div className="mt-6 p-4 bg-gray-50 rounded-xl">
-          <p className="text-xs text-gray-500 font-medium mb-2">Comptes de démonstration :</p>
-          <div className="space-y-1 text-xs text-gray-600">
-            <p><span className="font-medium">Admin :</span> admin@nightclub.fr / admin123</p>
-            <p><span className="font-medium">Employé :</span> dj.max@nightclub.fr / max123</p>
-          </div>
+        <div style={{
+          marginTop: 24, padding: '14px 16px', borderRadius: 10,
+          background: 'var(--surface)', border: '1px solid var(--border)',
+        }}>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 6 }}>Comptes demo</p>
+          <p style={{ fontSize: 11, color: 'var(--text-dim)' }}>Admin : admin@nightclub.fr / admin123</p>
+          <p style={{ fontSize: 11, color: 'var(--text-dim)' }}>Employe : dj.max@nightclub.fr / max123</p>
           <button
-            onClick={() => {
-              localStorage.clear();
-              window.location.reload();
+            onClick={() => { localStorage.clear(); window.location.reload(); }}
+            style={{
+              marginTop: 8, fontSize: 11, color: 'var(--red)', background: 'none',
+              border: 'none', cursor: 'pointer', textDecoration: 'underline',
+              textUnderlineOffset: 3,
             }}
-            className="mt-3 text-xs text-red-500 hover:text-red-700 underline"
           >
-            Réinitialiser les données
+            Reinitialiser les donnees
           </button>
         </div>
       </div>

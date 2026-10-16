@@ -1,1 +1,174 @@
 @import "tailwindcss";
+
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
+  --panel: #ffffff;
+  --surface: #fafaf8;
+  --surface-2: #f2f1ef;
+  --border: rgba(0, 0, 0, 0.06);
+  --border-2: rgba(0, 0, 0, 0.12);
+
+  --text: #1a1a1a;
+  --text-muted: #8e8e93;
+  --text-dim: #c0bdb8;
+
+  --accent: #1a1a1a;
+  --accent-dim: rgba(0, 0, 0, 0.05);
+
+  --violet: #5b4a9e;
+  --violet-bg: rgba(200, 185, 240, 0.3);
+  --violet-border: rgba(200, 185, 240, 0.25);
+
+  --yellow: #8a7030;
+  --yellow-bg: rgba(240, 220, 170, 0.35);
+  --yellow-border: rgba(240, 220, 170, 0.25);
+
+  --green: #2d7a4f;
+  --green-bg: rgba(180, 230, 200, 0.3);
+  --green-border: rgba(180, 230, 200, 0.25);
+
+  --peach: #9a4a3a;
+  --peach-bg: rgba(240, 195, 180, 0.3);
+  --peach-border: rgba(240, 195, 180, 0.25);
+
+  --blue: #3a6a8a;
+  --blue-bg: rgba(185, 215, 240, 0.3);
+  --blue-border: rgba(185, 215, 240, 0.25);
+
+  --red: #d93025;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+html {
+  background: #dedad4;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: -apple-system, system-ui, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+  color: var(--text);
+}
+
+/* ── Floating panel shell ── */
+.app-shell {
+  position: fixed;
+  inset: 12px;
+  background: var(--panel);
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.04),
+    0 4px 16px rgba(0,0,0,0.06);
+  animation: panelIn 600ms var(--ease-out) both;
+}
+
+@keyframes panelIn {
+  from { opacity: 0; transform: scale(0.985) translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ── Topbar — liquid glass ── */
+.app-topbar {
+  height: 52px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(20px) saturate(1.8);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  z-index: 5;
+}
+
+/* ── Body ── */
+.app-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ── Sidebar ── */
+.app-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 16px 16px;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  background: var(--panel);
+}
+
+/* ── Main content ── */
+.app-main {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--surface);
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.18); }
+
+/* ── Animations ── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes contentIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes shiftIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes badgePulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+@keyframes timeDotPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(26,26,26,0.3); }
+  50% { box-shadow: 0 0 0 4px rgba(26,26,26,0); }
+}
+
+/* ── Button press ── */
+button:active:not(:disabled) { transform: scale(0.97); }
+button {
+  transition: transform 100ms var(--ease-out), background 150ms ease, border-color 150ms ease;
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

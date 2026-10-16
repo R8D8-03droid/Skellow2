@@ -12,220 +12,263 @@ export default function Dashboard({ employees, shifts, currentUser }: DashboardP
   const isAdmin = currentUser.role === 'admin';
   const today = new Date();
   const weekStart = startOfWeek(today, { weekStartsOn: 1 });
-
-  // Calculate today's shifts
   const todayStr = format(today, 'yyyy-MM-dd');
-  const todayShifts = shifts.filter((s) => s.date === todayStr);
-  
-  // Calculate this week's shifts for current user
+  const todayShifts = shifts.filter(s => s.date === todayStr);
+
   const userWeekShifts = shifts.filter(
-    (s) => s.employeeId === currentUser.id && isThisWeek(new Date(s.date), { weekStartsOn: 1 })
+    s => s.employeeId === currentUser.id && isThisWeek(new Date(s.date), { weekStartsOn: 1 })
   );
 
-  // Calculate total hours this week for current user (excluding absences)
   const totalHoursThisWeek = userWeekShifts.reduce((total, shift) => {
-    // Exclure les absences
-    if (shift.status === 'absence_justified' || shift.status === 'absence_unjustified') {
-      return total;
-    }
+    if (shift.status === 'absence_justified' || shift.status === 'absence_unjustified') return total;
     const [sh, sm] = shift.startTime.split(':').map(Number);
     const [eh, em] = shift.endTime.split(':').map(Number);
     const hours = (eh * 60 + em - sh * 60 - sm) / 60;
     return total + (hours < 0 ? hours + 24 : hours);
   }, 0);
 
-  // Count absences this week
+  const activeEmployees = employees.filter(e => e.active);
+  const departments = [...new Set(activeEmployees.map(e => e.department))];
+
   const absenceCount = userWeekShifts.filter(
-    (s) => s.status === 'absence_justified' || s.status === 'absence_unjustified'
+    s => s.status === 'absence_justified' || s.status === 'absence_unjustified'
   ).length;
 
-  // Active employees count
-  const activeEmployees = employees.filter((e) => e.active).length;
-
-  // Department distribution
-  const departments = [...new Set(employees.filter(e => e.active).map(e => e.department))];
-
   return (
-    <div className="p-6 lg:p-8">
+    <div style={{ padding: '26px 26px', background: 'var(--surface)', minHeight: '100%', animation: 'contentIn 500ms var(--ease-out) 250ms both' }}>
+
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-800">
-          Bonjour, {currentUser.firstName} 👋
-        </h1>
-        <p className="text-gray-500 mt-1">
-          {format(today, "EEEE d MMMM yyyy", { locale: fr })}
-        </p>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
-              <i className="fas fa-clock text-purple-600"></i>
-            </div>
-            <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">Cette semaine</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-800">{totalHoursThisWeek.toFixed(1)}h</p>
-          <p className="text-sm text-gray-500">Heures travaillées</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
+        <div>
+          <h1 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.03em' }}>
+            Bonjour, {currentUser.firstName}
+          </h1>
+          <p style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 3, textTransform: 'capitalize' }}>
+            {format(today, 'EEEE d MMMM yyyy', { locale: fr })}
+          </p>
         </div>
-
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-              <i className="fas fa-moon text-blue-600"></i>
-            </div>
-            <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">Semaine</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-800">{userWeekShifts.length}</p>
-          <p className="text-sm text-gray-500">Shifts de nuit</p>
-        </div>
-
         {isAdmin && (
-          <>
-            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-10 h-10 bg-violet-100 rounded-xl flex items-center justify-center">
-                  <i className="fas fa-users text-violet-600"></i>
-                </div>
-              </div>
-              <p className="text-2xl font-bold text-gray-800">{activeEmployees}</p>
-              <p className="text-sm text-gray-500">Employés actifs</p>
-            </div>
-
-            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
-                  <i className="fas fa-user-times text-orange-600"></i>
-                </div>
-              </div>
-              <p className="text-2xl font-bold text-gray-800">{absenceCount}</p>
-              <p className="text-sm text-gray-500">Absences cette semaine</p>
-            </div>
-          </>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button style={{
+              fontSize: 12, fontWeight: 600, color: 'var(--text-muted)',
+              background: 'var(--surface-2)', border: '1px solid var(--border)',
+              borderRadius: 8, padding: '7px 14px', cursor: 'pointer',
+            }}>+ Shift</button>
+            <button style={{
+              fontSize: 12, fontWeight: 600, color: 'var(--panel)',
+              background: 'var(--text)', border: '1px solid var(--text)',
+              borderRadius: 8, padding: '7px 14px', cursor: 'pointer',
+            }}>+ Employe</button>
+          </div>
         )}
       </div>
 
-      {/* Today's Schedule */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <i className="fas fa-moon text-purple-500"></i>
-            Planning du soir
-          </h2>
-          {todayShifts.length > 0 ? (
-            <div className="space-y-3">
-              {todayShifts.map((shift) => {
-                const employee = employees.find((e) => e.id === shift.employeeId);
-                const isAbsent = shift.status === 'absence_justified' || shift.status === 'absence_unjustified';
-                const isJustified = shift.status === 'absence_justified';
-                return (
-                  <div key={shift.id} className={`flex items-center gap-3 p-3 rounded-xl ${
-                    isAbsent ? (isJustified ? 'bg-orange-50 border border-orange-200' : 'bg-red-50 border border-red-200') : 'bg-gray-50'
-                  }`}>
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs ${
-                      isAbsent ? (isJustified ? 'bg-gradient-to-br from-orange-400 to-amber-500' : 'bg-gradient-to-br from-red-400 to-rose-500') : 'bg-gradient-to-br from-purple-400 to-violet-500'
-                    }`}>
-                      {employee?.firstName[0]}{employee?.lastName[0]}
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-800 text-sm">
-                        {employee?.firstName} {employee?.lastName}
-                      </p>
-                      <p className={`text-xs ${isAbsent ? (isJustified ? 'text-orange-600' : 'text-red-600') : 'text-gray-500'}`}>
-                        {isAbsent ? (isJustified ? '⚕️ Absence justifiée' : '⚠️ Absence injustifiée') : shift.role}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className={`text-sm font-semibold ${isAbsent ? 'line-through opacity-50' : ''} text-gray-700`}>
-                        {shift.startTime} - {shift.endTime}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="text-gray-400 text-center py-8">Aucun shift ce soir</p>
-          )}
-        </div>
-
-        {/* My upcoming shifts */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <i className="fas fa-calendar-week text-purple-500"></i>
-            Mes prochains shifts
-          </h2>
-          <div className="space-y-3">
-            {Array.from({ length: 7 }).map((_, i) => {
-              const date = addDays(weekStart, i);
-              const dateStr = format(date, 'yyyy-MM-dd');
-              const dayShifts = userWeekShifts.filter((s) => s.date === dateStr);
-              
-              if (dayShifts.length === 0) return null;
-
-              return (
-                <div
-                  key={i}
-                  className={`flex items-center gap-3 p-3 rounded-xl ${
-                    isToday(date) ? 'bg-purple-50 border border-purple-200' : 'bg-gray-50'
-                  }`}
-                >
-                  <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center ${
-                    isToday(date) ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-600'
-                  }`}>
-                    <span className="text-[10px] font-medium uppercase">{format(date, 'EEE', { locale: fr })}</span>
-                    <span className="text-sm font-bold">{format(date, 'd')}</span>
-                  </div>
-                  <div className="flex-1">
-                    {dayShifts.map((shift) => (
-                      <p key={shift.id} className="text-sm text-gray-700">
-                        <span className="font-medium">{shift.startTime} - {shift.endTime}</span>
-                        <span className="text-gray-400 ml-2">({shift.role})</span>
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-            {userWeekShifts.length === 0 && (
-              <p className="text-gray-400 text-center py-8">Aucun shift cette semaine</p>
-            )}
-          </div>
-        </div>
+      {/* KPI Strip */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: isAdmin ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)',
+        border: '1px solid var(--border)', borderRadius: 14,
+        overflow: 'hidden', marginBottom: 8, background: 'var(--panel)',
+      }}>
+        <KpiCell label="Heures semaine" value={`${totalHoursThisWeek.toFixed(1)}h`} color="var(--text)" />
+        <KpiCell label="Mes shifts" value={String(userWeekShifts.length)} sub="cette semaine" color="var(--text)" border />
+        {isAdmin && <KpiCell label="Employes actifs" value={String(activeEmployees.length)} sub="tous departements" color="var(--green)" border />}
+        <KpiCell label="Absences" value={String(absenceCount)} sub="cette semaine" color={absenceCount > 0 ? 'var(--red)' : 'var(--text-dim)'} border />
       </div>
 
-      {/* Department Overview (Admin only) */}
-      {isAdmin && (
-        <div className="mt-6 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <i className="fas fa-building text-purple-500"></i>
-            Répartition par département
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {departments.map((dept) => {
-              const count = employees.filter((e) => e.department === dept && e.active).length;
-              const colors: Record<string, string> = {
-                'Bar': 'from-blue-400 to-cyan-500',
-                'Sécurité': 'from-red-400 to-rose-500',
-                'Accueil/Caisse': 'from-green-400 to-emerald-500',
-                'Vestiaire': 'from-yellow-400 to-amber-500',
-                'DJ/Animation': 'from-purple-400 to-violet-500',
-                'Direction': 'from-indigo-400 to-blue-500',
-                'Ménage/Entretien': 'from-gray-400 to-slate-500',
-              };
-              return (
-                <div key={dept} className="text-center p-4 bg-gray-50 rounded-xl">
-                  <div className={`w-12 h-12 mx-auto mb-2 bg-gradient-to-br ${colors[dept] || 'from-gray-400 to-gray-500'} rounded-xl flex items-center justify-center`}>
-                    <span className="text-white font-bold text-lg">{count}</span>
+      {/* Two-column layout */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+
+        {/* Tonight's shifts */}
+        <Card title="Planning du soir" sub={`${todayShifts.length} shift${todayShifts.length !== 1 ? 's' : ''} prevu${todayShifts.length !== 1 ? 's' : ''}`} link="Voir tout" delay={50}>
+          {todayShifts.length > 0 ? todayShifts.map(shift => {
+            const emp = employees.find(e => e.id === shift.employeeId);
+            if (!emp) return null;
+            const isAbsent = shift.status === 'absence_justified' || shift.status === 'absence_unjustified';
+            return (
+              <Row key={shift.id} style={{ opacity: isAbsent ? 0.5 : 1 }}>
+                <Avatar name={`${emp.firstName[0]}${emp.lastName[0]}`} dept={emp.department} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{emp.firstName} {emp.lastName}</p>
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>{emp.department}</p>
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
+                  {isAbsent ? (
+                    <span style={{ fontSize: 11, color: 'var(--red)', fontWeight: 500 }}>
+                      {shift.status === 'absence_justified' ? 'Abs. justifiee' : 'Absent'}
+                    </span>
+                  ) : (
+                    `${shift.startTime} – ${shift.endTime}`
+                  )}
+                </span>
+              </Row>
+            );
+          }) : (
+            <EmptyState text="Aucun shift ce soir" />
+          )}
+        </Card>
+
+        {/* My upcoming shifts */}
+        <Card title="Mes prochains shifts" sub="cette semaine" link="" delay={100}>
+          {userWeekShifts.length > 0 ? (
+            Array.from({ length: 7 }).map((_, i) => {
+              const date = addDays(weekStart, i);
+              const dateStr = format(date, 'yyyy-MM-dd');
+              const dayShifts = userWeekShifts.filter(s => s.date === dateStr);
+              if (dayShifts.length === 0) return null;
+              return dayShifts.map(shift => (
+                <Row key={shift.id}>
+                  <div style={{
+                    width: 40, height: 40, borderRadius: 10,
+                    background: isToday(date) ? 'var(--text)' : 'var(--surface-2)',
+                    color: isToday(date) ? 'white' : 'var(--text-muted)',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 9, fontWeight: 600, textTransform: 'uppercase', lineHeight: 1.3,
+                    flexShrink: 0,
+                  }}>
+                    <span>{format(date, 'EEE', { locale: fr })}</span>
+                    <span style={{ fontSize: 14, fontWeight: 700 }}>{format(date, 'd')}</span>
                   </div>
-                  <p className="text-sm font-medium text-gray-700">{dept}</p>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>
+                      {shift.startTime} – {shift.endTime}
+                    </p>
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>{shift.role}</p>
+                  </div>
+                </Row>
+              ));
+            })
+          ) : (
+            <EmptyState text="Aucun shift cette semaine" />
+          )}
+        </Card>
+      </div>
+
+      {/* Departments (admin) */}
+      {isAdmin && (
+        <Card title="Repartition par departement" sub={`${departments.length} departements`} link="" delay={150} fullWidth>
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(departments.length, 5)}, 1fr)`, gap: 8 }}>
+            {departments.map(dept => {
+              const count = activeEmployees.filter(e => e.department === dept).length;
+              const deptColors: Record<string, string> = {
+                'Bar': 'var(--yellow)', 'Sécurité': 'var(--peach)', 'Accueil/Caisse': 'var(--green)',
+                'DJ/Animation': 'var(--violet)', 'Direction': 'var(--blue)', 'Vestiaire': 'var(--yellow)',
+                'Ménage/Entretien': 'var(--peach)',
+              };
+              const color = deptColors[dept] || 'var(--text-muted)';
+              return (
+                <div key={dept} style={{
+                  padding: '14px 16px', borderRadius: 10,
+                  border: '1px solid var(--border)', background: 'var(--panel)',
+                  transition: 'background 150ms ease, border-color 150ms ease',
+                  cursor: 'pointer',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface)'; e.currentTarget.style.borderColor = 'var(--border-2)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'var(--panel)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+                >
+                  <div style={{ fontSize: 28, fontWeight: 800, color, letterSpacing: '-0.04em', lineHeight: 1 }}>{count}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 6, fontWeight: 500 }}>{dept}</div>
                 </div>
               );
             })}
           </div>
-        </div>
+        </Card>
       )}
+    </div>
+  );
+}
+
+// ── Sub-components ──
+
+function KpiCell({ label, value, sub, color, border }: {
+  label: string; value: string; sub?: string; color: string; border?: boolean;
+}) {
+  return (
+    <div style={{
+      padding: '22px 24px', cursor: 'pointer',
+      borderLeft: border ? '1px solid var(--border)' : 'none',
+      transition: 'background 120ms ease',
+    }}
+    onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface)')}
+    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+    >
+      <p style={{ fontSize: 12.5, color: 'var(--text-muted)', fontWeight: 500, marginBottom: 10 }}>{label}</p>
+      <div style={{ fontSize: 38, fontWeight: 800, letterSpacing: '-0.05em', color, lineHeight: 1 }}>{value}</div>
+      {sub && <p style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 5 }}>{sub}</p>}
+    </div>
+  );
+}
+
+function Card({ title, sub, link, delay, children, fullWidth }: {
+  title: string; sub: string; link: string; delay: number; children: React.ReactNode; fullWidth?: boolean;
+}) {
+  return (
+    <div style={{
+      background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 14,
+      padding: '22px 24px',
+      gridColumn: fullWidth ? '1 / -1' : undefined,
+      animation: `fadeInUp 550ms cubic-bezier(0.34,1.56,0.64,1) ${delay}ms both`,
+      transition: 'transform 250ms cubic-bezier(0.34,1.56,0.64,1), box-shadow 250ms ease, border-color 150ms ease',
+    }}
+    onMouseEnter={e => {
+      e.currentTarget.style.transform = 'translateY(-2px) scale(1.005)';
+      e.currentTarget.style.boxShadow = '0 8px 28px rgba(0,0,0,0.07)';
+      e.currentTarget.style.borderColor = 'var(--border-2)';
+    }}
+    onMouseLeave={e => {
+      e.currentTarget.style.transform = 'none';
+      e.currentTarget.style.boxShadow = 'none';
+      e.currentTarget.style.borderColor = 'var(--border)';
+    }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+        <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.03em' }}>{title}</h2>
+        {link && <span style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 600, cursor: 'pointer' }}>{link} →</span>}
+      </div>
+      <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 16 }}>{sub}</p>
+      {children}
+    </div>
+  );
+}
+
+function Row({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 10,
+      padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8,
+      marginBottom: 4, cursor: 'pointer',
+      transition: 'background 150ms ease, border-color 150ms ease',
+      ...style,
+    }}
+    onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface)'; e.currentTarget.style.borderColor = 'var(--border-2)'; }}
+    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Avatar({ name, dept }: { name: string; dept: string }) {
+  const deptColors: Record<string, string> = {
+    'Bar': 'var(--yellow)', 'Sécurité': 'var(--peach)', 'Accueil/Caisse': 'var(--green)',
+    'DJ/Animation': 'var(--violet)', 'Direction': 'var(--blue)', 'Vestiaire': 'var(--yellow)',
+    'Ménage/Entretien': 'var(--peach)',
+  };
+  return (
+    <div style={{
+      width: 28, height: 28, borderRadius: '50%',
+      background: deptColors[dept] || 'var(--text-muted)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: 10, fontWeight: 700, color: 'white', flexShrink: 0, letterSpacing: '-0.02em',
+    }}>
+      {name}
+    </div>
+  );
+}
+
+function EmptyState({ text }: { text: string }) {
+  return (
+    <div style={{ textAlign: 'center', padding: '24px 0' }}>
+      <p style={{ fontSize: 13, color: 'var(--text-dim)' }}>{text}</p>
     </div>
   );
 }

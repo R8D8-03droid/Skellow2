@@ -1,18 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Employee, Shift } from '../types';
 import { format, startOfWeek, addDays, addWeeks, subWeeks, isToday } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import {
-  DndContext,
-  DragEndEvent,
-  DragStartEvent,
-  DragOverlay,
-  useDraggable,
-  useDroppable,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core';
 
 interface PlanningProps {
   employees: Employee[];
@@ -21,700 +10,383 @@ interface PlanningProps {
   onUpdateShifts: (shifts: Shift[]) => void;
 }
 
+const HOUR_HEIGHT = 64;
+const START_HOUR = 18; // 18:00
+const END_HOUR = 7;   // 07:00 next day (13 hours total)
+const TOTAL_HOURS = 13;
+
+const SHIFT_COLORS: Record<string, { bg: string; color: string; border: string }> = {
+  'DJ/Animation': { bg: 'var(--violet-bg)', color: 'var(--violet)', border: 'var(--violet-border)' },
+  'Bar': { bg: 'var(--yellow-bg)', color: 'var(--yellow)', border: 'var(--yellow-border)' },
+  'Sécurité': { bg: 'var(--peach-bg)', color: 'var(--peach)', border: 'var(--peach-border)' },
+  'Accueil/Caisse': { bg: 'var(--green-bg)', color: 'var(--green)', border: 'var(--green-border)' },
+  'Direction': { bg: 'var(--blue-bg)', color: 'var(--blue)', border: 'var(--blue-border)' },
+  'Vestiaire': { bg: 'var(--yellow-bg)', color: 'var(--yellow)', border: 'var(--yellow-border)' },
+  'Ménage/Entretien': { bg: 'var(--peach-bg)', color: 'var(--peach)', border: 'var(--peach-border)' },
+};
+
+function getShiftColor(department: string) {
+  return SHIFT_COLORS[department] || { bg: 'var(--violet-bg)', color: 'var(--violet)', border: 'var(--violet-border)' };
+}
+
+function timeToOffset(time: string): number {
+  const [h, m] = time.split(':').map(Number);
+  let hourOffset = h - START_HOUR;
+  if (hourOffset < 0) hourOffset += 24;
+  return (hourOffset + m / 60) * HOUR_HEIGHT;
+}
+
+function shiftDuration(start: string, end: string): number {
+  const startOffset = timeToOffset(start);
+  const endOffset = timeToOffset(end);
+  if (endOffset <= startOffset) return (TOTAL_HOURS * HOUR_HEIGHT) - startOffset + endOffset;
+  return endOffset - startOffset;
+}
+
 export default function Planning({ employees, shifts, currentUser, onUpdateShifts }: PlanningProps) {
   const isAdmin = currentUser.role === 'admin';
   const [currentWeekStart, setCurrentWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
-  const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [copyMode, setCopyMode] = useState(false);
-  const [contextMenu, setContextMenu] = useState<{ shift: Shift; x: number; y: number; confirmDelete?: boolean } | null>(null);
-  
-  // État de publication du planning
-  const [isPublished, setIsPublished] = useState(false);
-  
-  // Charger l'état de publication de la semaine courante
-  const loadPublishedState = (weekStart: Date) => {
-    const weekKey = `planning_published_${format(weekStart, 'yyyy-MM-dd')}`;
-    const published = localStorage.getItem(weekKey) === 'true';
-    setIsPublished(published);
-  };
-  
-  // Sauvegarder l'état de publication
-  const savePublishedState = (weekStart: Date, published: boolean) => {
-    const weekKey = `planning_published_${format(weekStart, 'yyyy-MM-dd')}`;
-    localStorage.setItem(weekKey, published ? 'true' : 'false');
-    setIsPublished(published);
-  };
-  
-  // Publier le planning
-  const handlePublish = () => {
-    if (confirm('Êtes-vous sûr de vouloir publier ce planning ? Les employés pourront le consulter.')) {
-      savePublishedState(currentWeekStart, true);
-    }
-  };
-  
-  // Dépublier le planning
-  const handleUnpublish = () => {
-    if (confirm('Êtes-vous sûr de vouloir dépublier ce planning ? Les employés ne pourront plus le consulter.')) {
-      savePublishedState(currentWeekStart, false);
-    }
-  };
-  
-  // Charger l'état de publication quand la semaine change
+  const [selectedDept, setSelectedDept] = useState<string>('all');
+  const [now, setNow] = useState(new Date());
+
+  // Live clock
   useEffect(() => {
-    loadPublishedState(currentWeekStart);
-  }, [currentWeekStart]);
+    const interval = setInterval(() => setNow(new Date()), 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const days = Array.from({ length: 7 }).map((_, i) => addDays(currentWeekStart, i));
-  const activeEmployees = employees.filter((e) => e.active);
-  const departments = [...new Set(activeEmployees.map((e) => e.department))];
+  const hours = Array.from({ length: TOTAL_HOURS }).map((_, i) => {
+    const h = (START_HOUR + i) % 24;
+    return `${String(h).padStart(2, '0')}:00`;
+  });
 
-  const filteredEmployees = selectedDepartment === 'all'
-    ? activeEmployees
-    : activeEmployees.filter((e) => e.department === selectedDepartment);
+  const activeEmployees = employees.filter(e => e.active);
+  const departments = [...new Set(activeEmployees.map(e => e.department))];
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 5,
-      },
-    })
-  );
+  // Group shifts by day with employee info
+  const dayShifts = useMemo(() => {
+    return days.map(day => {
+      const dateStr = format(day, 'yyyy-MM-dd');
+      const dayS = shifts.filter(s => s.date === dateStr);
 
-  const getShiftsForDay = (employeeId: string, date: string) => {
-    return shifts.filter((s) => s.employeeId === employeeId && s.date === date);
-  };
+      // Filter by department if needed
+      if (selectedDept !== 'all') {
+        return dayS.filter(s => {
+          const emp = employees.find(e => e.id === s.employeeId);
+          return emp?.department === selectedDept;
+        });
+      }
+      return dayS;
+    });
+  }, [days, shifts, employees, selectedDept]);
 
-  const calculateHours = (start: string, end: string) => {
-    const [sh, sm] = start.split(':').map(Number);
-    const [eh, em] = end.split(':').map(Number);
-    const minutes = eh * 60 + em - sh * 60 - sm;
-    return minutes < 0 ? (minutes + 24 * 60) / 60 : minutes / 60;
-  };
+  // Current time indicator position
+  const nowHour = now.getHours();
+  const nowMin = now.getMinutes();
+  let timeOffset = (nowHour - START_HOUR) * HOUR_HEIGHT + (nowMin / 60) * HOUR_HEIGHT;
+  if (timeOffset < 0) timeOffset += 24 * HOUR_HEIGHT;
+  const showTimeIndicator = timeOffset >= 0 && timeOffset <= TOTAL_HOURS * HOUR_HEIGHT;
 
-  const handleUpdateShiftStatus = (shiftId: string, status: Shift['status']) => {
-    const updated = shifts.map((s) =>
-      s.id === shiftId ? { ...s, status } : s
-    );
-    onUpdateShifts(updated);
-    setContextMenu(null);
-  };
+  const todayStr = format(now, 'yyyy-MM-dd');
+  const todayDayIndex = days.findIndex(d => format(d, 'yyyy-MM-dd') === todayStr);
 
-  const handleDeleteShift = (shiftId: string) => {
-    onUpdateShifts(shifts.filter((s) => s.id !== shiftId));
-    setContextMenu(null);
-  };
-
-  const handleRequestDelete = (shift: Shift) => {
-    setContextMenu({ ...contextMenu!, shift, confirmDelete: true });
-  };
-
-  const handleCancelDelete = () => {
-    if (contextMenu) {
-      setContextMenu({ ...contextMenu, confirmDelete: false });
-    }
+  const handleShiftClick = (shift: Shift) => {
+    if (!isAdmin) return;
+    setEditingShift(shift);
+    setShowAddModal(true);
   };
 
   const handleSaveShift = (shift: Shift) => {
-    // Détecter si le shift traverse minuit
-    const [startH, startM] = shift.startTime.split(':').map(Number);
-    const [endH, endM] = shift.endTime.split(':').map(Number);
-    const startMinutes = startH * 60 + startM;
-    const endMinutes = endH * 60 + endM;
-    
-    const crossesMidnight = endMinutes < startMinutes;
-    
-    if (crossesMidnight) {
-      // Diviser en deux shifts
-      const firstShift: Shift = {
-        ...shift,
-        id: shift.id || `shift-${Date.now()}-1`,
-        endTime: '23:59',
-      };
-      
-      // Calculer la date du lendemain
-      const [year, month, day] = shift.date.split('-').map(Number);
-      const nextDay = new Date(year, month - 1, day + 1);
-      const nextDayStr = format(nextDay, 'yyyy-MM-dd');
-      
-      const secondShift: Shift = {
-        ...shift,
-        id: `shift-${Date.now()}-2`,
-        date: nextDayStr,
-        startTime: '00:00',
-      };
-      
-      // Supprimer l'ancien shift s'il existe (pour les modifications)
-      let updatedShifts = shifts;
-      if (shift.id) {
-        updatedShifts = shifts.filter((s) => s.id !== shift.id);
-      }
-      
-      // Ajouter les deux nouveaux shifts
-      onUpdateShifts([...updatedShifts, firstShift, secondShift]);
+    const existing = shifts.findIndex(s => s.id === shift.id);
+    if (existing >= 0) {
+      const updated = [...shifts];
+      updated[existing] = shift;
+      onUpdateShifts(updated);
     } else {
-      // Shift normal (ne traverse pas minuit)
-      const existing = shifts.findIndex((s) => s.id === shift.id);
-      if (existing >= 0) {
-        const updated = [...shifts];
-        updated[existing] = shift;
-        onUpdateShifts(updated);
-      } else {
-        onUpdateShifts([...shifts, shift]);
-      }
+      onUpdateShifts([...shifts, shift]);
     }
-    
     setShowAddModal(false);
     setEditingShift(null);
   };
 
-  const handleDragStart = (event: DragStartEvent) => {
-    if (!isAdmin) return;
-    const shiftId = event.active.id as string;
-    setActiveId(shiftId);
-    setContextMenu(null); // Fermer le menu si ouvert
-  };
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    if (!isAdmin) return;
-    const { active, over } = event;
-    setActiveId(null);
-
-    if (!over) return;
-
-    const shiftId = active.id as string;
-    const dropData = over.id as string;
-    
-    // Parse drop target: "cell::{employeeId}::{date}"
-    if (!dropData.startsWith('cell::')) return;
-    
-    const payload = dropData.replace('cell::', '');
-    const sepIndex = payload.lastIndexOf('::');
-    if (sepIndex === -1) return;
-    
-    const employeeId = payload.substring(0, sepIndex);
-    const date = payload.substring(sepIndex + 2);
-    
-    const shift = shifts.find((s) => s.id === shiftId);
-    if (!shift) return;
-
-    if (copyMode) {
-      // Create a copy of the shift
-      const newShift: Shift = {
-        ...shift,
-        id: `shift-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        employeeId,
-        date,
-      };
-      onUpdateShifts([...shifts, newShift]);
-    } else {
-      // Move the shift
-      const updated = shifts.map((s) =>
-        s.id === shiftId ? { ...s, employeeId, date } : s
-      );
-      onUpdateShifts(updated);
-    }
-  };
-
-  const handleShiftClick = (shift: Shift, e: React.MouseEvent) => {
-    if (!isAdmin) return;
-    e.preventDefault();
-    e.stopPropagation();
-    setContextMenu({ shift, x: e.clientX, y: e.clientY });
-  };
-
-  const handleAddShiftToCell = (employeeId: string, date: string) => {
-    if (!isAdmin) return;
-    const employee = employees.find((e) => e.id === employeeId);
-    setEditingShift({
-      id: '',
-      employeeId,
-      date,
-      startTime: '09:00',
-      endTime: '17:00',
-      role: employee?.position || '',
-    });
-    setShowAddModal(true);
-  };
-
-  // Close context menu on click outside
-  const handleCloseContextMenu = () => {
-    setContextMenu(null);
+  const handleDeleteShift = (shiftId: string) => {
+    onUpdateShifts(shifts.filter(s => s.id !== shiftId));
+    setShowAddModal(false);
+    setEditingShift(null);
   };
 
   return (
-    <div className="p-6 lg:p-8" onClick={handleCloseContextMenu}>
+    <div style={{ padding: '24px 28px', animation: 'contentIn 500ms var(--ease-out) 250ms both' }}>
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            <i className="fas fa-calendar-alt text-purple-500"></i>
-            Planning hebdomadaire
-          </h1>
-          <p className="text-gray-500 text-sm mt-1">
-            Semaine du {format(currentWeekStart, 'd MMMM', { locale: fr })} au{' '}
-            {format(addDays(currentWeekStart, 6), 'd MMMM yyyy', { locale: fr })}
-          </p>
-        </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          {isAdmin && (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+          {/* Week nav */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button
-              onClick={() => setCopyMode(!copyMode)}
-              className={`px-3 py-2 text-sm font-medium rounded-xl transition-all flex items-center gap-2 ${
-                copyMode
-                  ? 'bg-blue-500 text-white shadow-lg'
-                  : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
-              }`}
-              title="Mode copie : maintenez activé pour copier les shifts au lieu de les déplacer"
+              onClick={() => setCurrentWeekStart(subWeeks(currentWeekStart, 1))}
+              style={{
+                width: 32, height: 32, borderRadius: 8, border: '1px solid var(--border-2)',
+                background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#666',
+              }}
             >
-              <i className="fas fa-copy"></i>
-              <span>{copyMode ? 'Mode copie ON' : 'Copier'}</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><polyline points="15 18 9 12 15 6"/></svg>
             </button>
-          )}
-          <select
-            value={selectedDepartment}
-            onChange={(e) => setSelectedDepartment(e.target.value)}
-            className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-purple-500"
-          >
-            <option value="all">Tous les départements</option>
-            {departments.map((dept) => (
-              <option key={dept} value={dept}>{dept}</option>
+            <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.03em' }}>
+              {format(currentWeekStart, 'dd', { locale: fr })}–{format(addDays(currentWeekStart, 6), 'dd MMMM yyyy', { locale: fr })}
+            </h1>
+            <button
+              onClick={() => setCurrentWeekStart(addWeeks(currentWeekStart, 1))}
+              style={{
+                width: 32, height: 32, borderRadius: 8, border: '1px solid var(--border-2)',
+                background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#666',
+              }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+
+          {/* Filter pills */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Pill active={selectedDept === 'all'} onClick={() => setSelectedDept('all')} checkmark>
+              Tous
+            </Pill>
+            {departments.map(dept => (
+              <Pill key={dept} active={selectedDept === dept} onClick={() => setSelectedDept(dept)}>
+                {dept.split('/')[0]}
+              </Pill>
             ))}
-          </select>
-          <button
-            onClick={() => setCurrentWeekStart(subWeeks(currentWeekStart, 1))}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <i className="fas fa-chevron-left text-gray-600"></i>
-          </button>
-          <button
-            onClick={() => setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}
-            className="px-3 py-2 text-sm font-medium text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-          >
-            Aujourd'hui
-          </button>
-          <button
-            onClick={() => setCurrentWeekStart(addWeeks(currentWeekStart, 1))}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <i className="fas fa-chevron-right text-gray-600"></i>
+            <Pill active={false} onClick={() => setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}>
+              Cette sem. <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="10" height="10"><polyline points="6 9 12 15 18 9"/></svg>
+            </Pill>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button style={{
+            padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+            border: '1px solid var(--border-2)', background: 'white', color: '#444',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+          }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+            Filtrer
           </button>
           {isAdmin && (
             <button
               onClick={() => { setEditingShift(null); setShowAddModal(true); }}
-              className="px-4 py-2 bg-gradient-to-r from-purple-500 to-violet-600 text-white text-sm font-medium rounded-xl shadow hover:shadow-lg transition-all"
+              style={{
+                padding: '7px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                border: 'none', background: '#1a1a1a', color: 'white',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+              }}
             >
-              <i className="fas fa-plus mr-2"></i>Ajouter
+              + Ajouter shift
             </button>
           )}
         </div>
       </div>
 
-      {/* Publication Status Bar */}
-      <div className="mb-4 flex items-center justify-between bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-        <div className="flex items-center gap-3">
-          {isPublished ? (
-            <>
-              <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                <i className="fas fa-check-circle text-green-600 text-xl"></i>
-              </div>
-              <div>
-                <p className="font-semibold text-green-800">Planning publié</p>
-                <p className="text-sm text-gray-600">Les employés peuvent consulter ce planning</p>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
-                <i className="fas fa-edit text-orange-600 text-xl"></i>
-              </div>
-              <div>
-                <p className="font-semibold text-orange-800">Planning en cours d'édition</p>
-                <p className="text-sm text-gray-600">
-                  {isAdmin ? 'Publiez-le pour que les employés puissent le consulter' : 'Ce planning n\'est pas encore visible'}
-                </p>
-              </div>
-            </>
-          )}
+      {/* Schedule grid */}
+      <div style={{
+        display: 'flex', overflow: 'hidden',
+        border: '1px solid var(--border)', borderRadius: 16,
+        background: '#fff',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.02), 0 0 0 1px rgba(255,255,255,0.6) inset',
+      }}>
+        {/* Time column */}
+        <div style={{ width: 56, flexShrink: 0, paddingTop: 40 }}>
+          {hours.map(h => (
+            <div key={h} style={{
+              height: HOUR_HEIGHT, display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end',
+              paddingRight: 12, fontSize: 11, color: 'var(--text-dim)', fontWeight: 500,
+              fontVariantNumeric: 'tabular-nums',
+            }}>
+              {h}
+            </div>
+          ))}
         </div>
-        {isAdmin && (
-          <div>
-            {isPublished ? (
-              <button
-                onClick={handleUnpublish}
-                className="px-4 py-2 bg-white border-2 border-orange-500 text-orange-600 text-sm font-medium rounded-xl hover:bg-orange-50 transition-all"
-              >
-                <i className="fas fa-eye-slash mr-2"></i>Dépublier
-              </button>
-            ) : (
-              <button
-                onClick={handlePublish}
-                className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-medium rounded-xl shadow hover:shadow-lg transition-all"
-              >
-                <i className="fas fa-paper-plane mr-2"></i>Publier
-              </button>
-            )}
-          </div>
-        )}
-      </div>
 
-      {/* Help text for drag & drop */}
-      {isAdmin && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-xl text-sm text-blue-700 flex items-start gap-2">
-          <i className="fas fa-info-circle mt-0.5"></i>
-          <div>
-            <span className="font-medium">⠿ Glissez</span> la poignée à gauche d'un shift pour le déplacer. 
-            Activez le <span className="font-medium">mode copie</span> pour dupliquer au lieu de déplacer. 
-            <span className="font-medium">Cliquez</span> sur un shift pour le modifier ou le supprimer.
-          </div>
-        </div>
-      )}
+        {/* Day columns */}
+        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: `repeat(7, 1fr)`, overflowX: 'auto' }}>
+          {days.map((day, dayIndex) => {
+            const dateStr = format(day, 'yyyy-MM-dd');
+            const isCurrentDay = isToday(day);
+            const shiftsForDay = dayShifts[dayIndex] || [];
 
-      {/* Message pour les employés si le planning n'est pas publié */}
-      {!isAdmin && !isPublished && (
-        <div className="mb-4 p-6 bg-orange-50 border-2 border-orange-200 rounded-xl text-center">
-          <div className="w-16 h-16 mx-auto mb-4 bg-orange-100 rounded-full flex items-center justify-center">
-            <i className="fas fa-lock text-orange-500 text-3xl"></i>
-          </div>
-          <h3 className="text-lg font-bold text-orange-800 mb-2">Planning non publié</h3>
-          <p className="text-orange-700">
-            Ce planning est en cours de préparation par l'administration.<br />
-            Il sera visible une fois publié.
-          </p>
-        </div>
-      )}
+            return (
+              <div key={dateStr} style={{ borderLeft: dayIndex > 0 ? '1px solid rgba(0,0,0,0.05)' : 'none', minWidth: 0 }}>
+                {/* Day header */}
+                <div style={{
+                  height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 12, fontWeight: isCurrentDay ? 600 : 500,
+                  color: isCurrentDay ? 'white' : '#999',
+                  background: isCurrentDay ? '#1a1a1a' : 'transparent',
+                  borderBottom: '1px solid rgba(0,0,0,0.06)',
+                  gap: 4,
+                  transition: 'background 200ms ease, color 200ms ease',
+                }}>
+                  {format(day, 'd')} – {format(day, 'EEE', { locale: fr })}
+                </div>
 
-      {/* Planning Table - Masqué pour les employés si non publié */}
-      {(isAdmin || isPublished) && (
-      <DndContext
-        sensors={sensors}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="sticky left-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[200px]">
-                    Employé
-                  </th>
-                  {days.map((day) => (
-                    <th
-                      key={day.toISOString()}
-                      className={`px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider min-w-[130px] ${
-                        isToday(day) ? 'bg-purple-50 text-purple-700' : 'text-gray-500'
-                      }`}
-                    >
-                      <div>{format(day, 'EEE', { locale: fr })}</div>
-                      <div className={`text-lg font-bold ${isToday(day) ? 'text-purple-600' : 'text-gray-800'}`}>
-                        {format(day, 'd')}
-                      </div>
-                    </th>
+                {/* Day body */}
+                <div style={{ position: 'relative' }}>
+                  {/* Hour slots */}
+                  {hours.map(h => (
+                    <div key={h} style={{
+                      height: HOUR_HEIGHT,
+                      borderBottom: '1px solid rgba(0,0,0,0.035)',
+                      cursor: isAdmin ? 'pointer' : 'default',
+                    }}
+                    onClick={() => {
+                      if (!isAdmin) return;
+                      const employee = employees.find(e => e.active);
+                      if (!employee) return;
+                      setEditingShift({
+                        id: '',
+                        employeeId: employee.id,
+                        date: dateStr,
+                        startTime: h,
+                        endTime: `${String((parseInt(h) + 8) % 24).padStart(2, '0')}:00`,
+                        role: employee.position || '',
+                      });
+                      setShowAddModal(true);
+                    }}
+                    />
                   ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {filteredEmployees.map((employee) => {
-                  // Calcul du total hebdomadaire (exclut les absences)
-                  let weekTotal = 0;
-                  let absenceCount = 0;
-                  days.forEach((day) => {
-                    const dateStr = format(day, 'yyyy-MM-dd');
-                    const dayShifts = getShiftsForDay(employee.id, dateStr);
-                    dayShifts.forEach((s) => {
-                      // Ne compter que les shifts présents ou programmés
-                      if (s.status !== 'absence_justified' && s.status !== 'absence_unjustified') {
-                        weekTotal += calculateHours(s.startTime, s.endTime);
-                      } else {
-                        absenceCount++;
-                      }
+
+                  {/* Shift blocks */}
+                  {shiftsForDay.map((shift, si) => {
+                    const emp = employees.find(e => e.id === shift.employeeId);
+                    if (!emp) return null;
+                    const colors = getShiftColor(emp.department);
+                    const top = timeToOffset(shift.startTime);
+                    const height = shiftDuration(shift.startTime, shift.endTime);
+
+                    // Simple overlap: count shifts that overlap and offset
+                    const overlapping = shiftsForDay.filter((s, idx) => {
+                      if (idx >= si) return false;
+                      const sTop = timeToOffset(s.startTime);
+                      const sH = shiftDuration(s.startTime, s.endTime);
+                      return top < sTop + sH && top + height > sTop;
                     });
-                  });
+                    const overlapIndex = overlapping.length;
+                    const totalOverlaps = shiftsForDay.filter(s => {
+                      if (s.id === shift.id) return false;
+                      const sTop = timeToOffset(s.startTime);
+                      const sH = shiftDuration(s.startTime, s.endTime);
+                      return top < sTop + sH && top + height > sTop;
+                    }).length + 1;
 
-                  const weeklyContractHours = employee.monthlyHours / 4.33;
-                  const difference = weekTotal - weeklyContractHours;
-                  const isPositive = difference > 0.05;
-                  const isNegative = difference < -0.05;
+                    const width = totalOverlaps > 1 ? `${100 / totalOverlaps}%` : 'calc(100% - 8px)';
+                    const left = totalOverlaps > 1 ? `${(overlapIndex / totalOverlaps) * 100}%` : '4px';
 
-                  return (
-                    <tr key={employee.id} className="hover:bg-gray-50/50">
-                      <td className="sticky left-0 bg-white z-10 px-4 py-3">
-                        <div className="flex items-center gap-3 mb-2">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs ${
-                            employee.role === 'admin' 
-                              ? 'bg-gradient-to-br from-amber-400 to-orange-500' 
-                              : 'bg-gradient-to-br from-purple-400 to-violet-500'
-                          }`}>
-                            {employee.firstName[0]}{employee.lastName[0]}
+                    const isAbsent = shift.status === 'absence_justified' || shift.status === 'absence_unjustified';
+
+                    return (
+                      <div
+                        key={shift.id}
+                        onClick={(e) => { e.stopPropagation(); handleShiftClick(shift); }}
+                        style={{
+                          position: 'absolute',
+                          top, height: Math.max(height, 32),
+                          left, width,
+                          paddingLeft: totalOverlaps > 1 ? 2 : 0,
+                          paddingRight: totalOverlaps > 1 ? 2 : 0,
+                          animation: `shiftIn 400ms var(--ease-out-expo) ${350 + si * 50}ms both`,
+                        }}
+                      >
+                        <div
+                          style={{
+                            height: '100%',
+                            borderRadius: 10, padding: '8px 10px',
+                            fontSize: 11, overflow: 'hidden',
+                            cursor: 'pointer',
+                            background: colors.bg, color: colors.color,
+                            border: `1px solid ${colors.border}`,
+                            backdropFilter: 'blur(8px)',
+                            WebkitBackdropFilter: 'blur(8px)',
+                            opacity: isAbsent ? 0.5 : 1,
+                            transition: 'transform 200ms var(--ease-out), box-shadow 200ms var(--ease-out)',
+                          }}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.transform = 'translateY(-2px)';
+                            e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.08)';
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.transform = 'none';
+                            e.currentTarget.style.boxShadow = 'none';
+                          }}
+                        >
+                          <div style={{ fontWeight: 600, marginBottom: 2 }}>
+                            {emp.firstName} {emp.lastName.charAt(0)}.
                           </div>
-                          <div>
-                            <p className="font-medium text-gray-800 text-sm flex items-center gap-1.5">
-                              {employee.firstName} {employee.lastName}
-                              {employee.role === 'admin' && (
-                                <span className="text-[9px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full font-semibold">
-                                  <i className="fas fa-crown mr-0.5"></i>Admin
-                                </span>
-                              )}
-                            </p>
-                            <p className="text-xs text-gray-400">{employee.department}</p>
+                          <div style={{ opacity: 0.65, fontSize: 10 }}>
+                            {shift.startTime} – {shift.endTime}
                           </div>
-                        </div>
-                        <div className="flex items-center gap-2 pl-11 pt-1 border-t border-gray-100">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-xs font-bold text-gray-800">
-                            {weekTotal.toFixed(1)}h
-                          </span>
-                          <span className="text-[10px] text-gray-400">
-                            / {weeklyContractHours.toFixed(1)}h
-                          </span>
-                          <span className={`inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                            isPositive
-                              ? 'text-green-700 bg-green-100'
-                              : isNegative
-                                ? 'text-red-700 bg-red-100'
-                                : 'text-gray-500 bg-gray-100'
-                          }`}>
-                            {isPositive ? '+' : isNegative ? '' : ''}{difference.toFixed(1)}h
-                          </span>
-                          {absenceCount > 0 && (
-                            <span className="inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">
-                              {absenceCount} abs.
-                            </span>
+                          {shift.status === 'present' && (
+                            <div style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 3,
+                              fontSize: 10, fontWeight: 600, marginTop: 4,
+                            }}>
+                              <svg viewBox="0 0 24 24" fill="currentColor" width="11" height="11">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="9 12 11 14 15 10" fill="none" stroke="white" strokeWidth="2.5"/>
+                              </svg>
+                              Confirmee
+                            </div>
+                          )}
+                          {isAbsent && (
+                            <div style={{ fontSize: 10, fontWeight: 600, marginTop: 4, opacity: 0.8 }}>
+                              {shift.status === 'absence_justified' ? 'Abs. justifiee' : 'Abs. injustifiee'}
+                            </div>
                           )}
                         </div>
-                      </td>
-                      {days.map((day) => {
-                        const dateStr = format(day, 'yyyy-MM-dd');
-                        const dayShifts = getShiftsForDay(employee.id, dateStr);
-                        const dropId = `cell::${employee.id}::${dateStr}`;
+                      </div>
+                    );
+                  })}
 
-                        return (
-                          <DroppableCell key={dateStr} id={dropId} isToday={isToday(day)}>
-                            <div className="space-y-1 min-h-[40px]">
-                              {dayShifts.map((shift) => (
-                                <DraggableShift
-                                  key={shift.id}
-                                  shift={shift}
-                                  isAdmin={isAdmin}
-                                  onClick={(e) => handleShiftClick(shift, e)}
-                                  copyMode={copyMode}
-                                />
-                              ))}
-                              {isAdmin && (
-                                <button
-                                  onClick={() => handleAddShiftToCell(employee.id, dateStr)}
-                                  className="w-full py-1 rounded-lg border border-dashed border-gray-200 text-gray-300 hover:border-purple-400 hover:text-purple-500 hover:bg-purple-50/50 transition-all text-xs flex items-center justify-center gap-1"
-                                  title="Ajouter un shift"
-                                >
-                                  <i className="fas fa-plus text-[10px]"></i>
-                                </button>
-                              )}
-                            </div>
-                          </DroppableCell>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  {/* Time indicator (only on today's column) */}
+                  {isCurrentDay && showTimeIndicator && (
+                    <div style={{
+                      position: 'absolute', top: timeOffset, left: -4, right: 0,
+                      display: 'flex', alignItems: 'center', zIndex: 10,
+                      animation: 'fadeIn 500ms var(--ease-out) 600ms both',
+                    }}>
+                      <span style={{
+                        background: '#1a1a1a', color: 'white',
+                        fontSize: 10, fontWeight: 700,
+                        padding: '3px 8px', borderRadius: 6,
+                        whiteSpace: 'nowrap', flexShrink: 0,
+                        position: 'relative',
+                      }}>
+                        <span style={{
+                          position: 'absolute', left: -3, top: '50%', transform: 'translateY(-50%)',
+                          width: 7, height: 7, borderRadius: '50%', background: '#1a1a1a',
+                          animation: 'timeDotPulse 2s ease-in-out infinite',
+                        }} />
+                        {String(nowHour).padStart(2, '0')}:{String(nowMin).padStart(2, '0')}
+                      </span>
+                      <span style={{ flex: 1, height: 2, background: '#1a1a1a' }} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
+      </div>
 
-        {/* Drag Overlay */}
-        <DragOverlay>
-          {activeId ? (
-            <div className="bg-gradient-to-r from-purple-100 to-violet-100 border-2 border-purple-400 rounded-lg px-3 py-2 shadow-xl opacity-90 cursor-grabbing">
-              {(() => {
-                const shift = shifts.find((s) => s.id === activeId);
-                if (!shift) return null;
-                return (
-                  <div>
-                    <p className="font-semibold text-purple-800 text-sm">
-                      {shift.startTime} - {shift.endTime}
-                    </p>
-                    <p className="text-purple-600 text-xs">{shift.role}</p>
-                    {copyMode && (
-                      <p className="text-blue-600 text-[10px] font-bold mt-1">
-                        <i className="fas fa-copy mr-1"></i>COPIE
-                      </p>
-                    )}
-                  </div>
-                );
-              })()}
-            </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
-      )}
-
-      {/* Context Menu */}
-      {contextMenu && (
-        <div
-          className="fixed z-[100] bg-white rounded-xl shadow-2xl border border-gray-200 py-2 min-w-[200px]"
-          style={{
-            top: (() => {
-              // Hauteur estimée du menu (~400px pour le menu complet)
-              const menuHeight = 400;
-              const viewportHeight = window.innerHeight;
-              // Si le menu déborde en bas, l'afficher au-dessus du clic
-              if (contextMenu.y + menuHeight > viewportHeight) {
-                return Math.max(10, contextMenu.y - menuHeight);
-              }
-              return contextMenu.y;
-            })(),
-            left: (() => {
-              // Largeur estimée du menu (~220px)
-              const menuWidth = 220;
-              const viewportWidth = window.innerWidth;
-              // Si le menu déborde à droite, l'afficher à gauche du clic
-              if (contextMenu.x + menuWidth > viewportWidth) {
-                return Math.max(10, contextMenu.x - menuWidth);
-              }
-              return contextMenu.x;
-            })(),
-          }}
-          onClick={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-          onPointerUp={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          {!contextMenu.confirmDelete ? (
-            <>
-              <div className="px-4 py-2 border-b border-gray-100">
-                <p className="font-semibold text-gray-800 text-sm">
-                  {contextMenu.shift.startTime} - {contextMenu.shift.endTime}
-                </p>
-                <p className="text-xs text-gray-500">{contextMenu.shift.role}</p>
-              </div>
-              <button
-                type="button"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => {
-                  setEditingShift(contextMenu.shift);
-                  setShowAddModal(true);
-                  setContextMenu(null);
-                }}
-                className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-              >
-                <i className="fas fa-edit text-purple-500 w-4"></i>
-                Modifier
-              </button>
-              <button
-                type="button"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => {
-                  const shift = contextMenu.shift;
-                  const newShift: Shift = {
-                    ...shift,
-                    id: `shift-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                  };
-                  onUpdateShifts([...shifts, newShift]);
-                  setContextMenu(null);
-                }}
-                className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-              >
-                <i className="fas fa-copy text-blue-500 w-4"></i>
-                Dupliquer
-              </button>
-              <div className="border-t border-gray-100 my-1"></div>
-              <p className="px-4 py-1 text-[10px] font-semibold text-gray-400 uppercase">Statut</p>
-              <button
-                type="button"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => handleUpdateShiftStatus(contextMenu.shift.id, 'scheduled')}
-                className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 ${
-                  contextMenu.shift.status === 'scheduled' || !contextMenu.shift.status ? 'text-purple-600 font-medium' : 'text-gray-700'
-                }`}
-              >
-                <i className="fas fa-calendar-check text-purple-500 w-4"></i>
-                Programmé
-              </button>
-              <button
-                type="button"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => handleUpdateShiftStatus(contextMenu.shift.id, 'present')}
-                className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 ${
-                  contextMenu.shift.status === 'present' ? 'text-green-600 font-medium' : 'text-gray-700'
-                }`}
-              >
-                <i className="fas fa-user-check text-green-500 w-4"></i>
-                Présent
-              </button>
-              <button
-                type="button"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => handleUpdateShiftStatus(contextMenu.shift.id, 'absence_justified')}
-                className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 ${
-                  contextMenu.shift.status === 'absence_justified' ? 'text-orange-600 font-medium' : 'text-gray-700'
-                }`}
-              >
-                <i className="fas fa-file-medical text-orange-500 w-4"></i>
-                Absence justifiée
-              </button>
-              <button
-                type="button"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => handleUpdateShiftStatus(contextMenu.shift.id, 'absence_unjustified')}
-                className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 ${
-                  contextMenu.shift.status === 'absence_unjustified' ? 'text-red-600 font-medium' : 'text-gray-700'
-                }`}
-              >
-                <i className="fas fa-exclamation-triangle text-red-500 w-4"></i>
-                Absence injustifiée
-              </button>
-              <div className="border-t border-gray-100 my-1"></div>
-              <button
-                type="button"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => handleRequestDelete(contextMenu.shift)}
-                className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-              >
-                <i className="fas fa-trash w-4"></i>
-                Supprimer
-              </button>
-            </>
-          ) : (
-            <>
-              <div className="px-4 py-3 border-b border-gray-100">
-                <p className="font-semibold text-gray-800 text-sm">
-                  Confirmer la suppression ?
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {contextMenu.shift.startTime} - {contextMenu.shift.endTime}
-                </p>
-              </div>
-              <div className="p-2 flex gap-2">
-                <button
-                  type="button"
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={handleCancelDelete}
-                  className="flex-1 px-3 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="button"
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={() => handleDeleteShift(contextMenu.shift.id)}
-                  className="flex-1 px-3 py-2 text-sm text-white bg-red-500 hover:bg-red-600 rounded-lg font-medium"
-                >
-                  Supprimer
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Add/Edit Shift Modal */}
+      {/* Add/Edit Modal */}
       {showAddModal && (
         <ShiftModal
           shift={editingShift}
-          employees={filteredEmployees}
+          employees={activeEmployees}
           onSave={handleSaveShift}
+          onDelete={editingShift?.id ? () => handleDeleteShift(editingShift.id) : undefined}
           onClose={() => { setShowAddModal(false); setEditingShift(null); }}
         />
       )}
@@ -722,164 +394,58 @@ export default function Planning({ employees, shifts, currentUser, onUpdateShift
   );
 }
 
-// Droppable Cell Component
-function DroppableCell({ id, children, isToday }: { id: string; children: React.ReactNode; isToday: boolean }) {
-  const { isOver, setNodeRef } = useDroppable({ id });
-
-  return (
-    <td
-      ref={setNodeRef}
-      className={`px-2 py-2 text-center transition-colors ${
-        isToday ? 'bg-purple-50/30' : ''
-      } ${isOver ? 'bg-blue-50 ring-2 ring-inset ring-blue-300' : ''}`}
-    >
-      {children}
-    </td>
-  );
-}
-
-// Draggable Shift Component
-function DraggableShift({ shift, isAdmin, onClick, copyMode }: { 
-  shift: Shift; 
-  isAdmin: boolean; 
-  onClick: (e: React.MouseEvent) => void;
-  copyMode: boolean;
+// ── Pill component ──
+function Pill({ active, onClick, children, checkmark }: {
+  active: boolean; onClick: () => void; children: React.ReactNode; checkmark?: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: shift.id,
-    disabled: !isAdmin,
-  });
-
-  const handleButtonClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    onClick(e);
-  };
-
-  const handleButtonPointerDown = (e: React.PointerEvent) => {
-    e.stopPropagation();
-  };
-
-  // Déterminer les styles selon le statut
-  const getStatusStyles = () => {
-    switch (shift.status) {
-      case 'absence_justified':
-        return {
-          bg: 'bg-gradient-to-r from-orange-50 to-amber-50',
-          border: 'border-orange-200',
-          text: 'text-orange-800',
-          subtext: 'text-orange-600',
-          handle: 'bg-orange-200/50 hover:bg-orange-300/70',
-          handleIcon: 'text-orange-600',
-          icon: 'fas fa-file-medical',
-          label: 'Abs. justifiée'
-        };
-      case 'absence_unjustified':
-        return {
-          bg: 'bg-gradient-to-r from-red-50 to-rose-50',
-          border: 'border-red-200',
-          text: 'text-red-800',
-          subtext: 'text-red-600',
-          handle: 'bg-red-200/50 hover:bg-red-300/70',
-          handleIcon: 'text-red-600',
-          icon: 'fas fa-exclamation-triangle',
-          label: 'Abs. injustifiée'
-        };
-      default:
-        return {
-          bg: 'bg-gradient-to-r from-purple-50 to-violet-50',
-          border: 'border-purple-200',
-          text: 'text-purple-800',
-          subtext: 'text-purple-600',
-          handle: 'bg-purple-200/50 hover:bg-purple-300/70',
-          handleIcon: 'text-purple-600',
-          icon: null,
-          label: null
-        };
-    }
-  };
-
-  const styles = getStatusStyles();
-
   return (
     <div
-      ref={setNodeRef}
-      className={`group relative flex items-stretch ${styles.bg} border ${styles.border} rounded-lg text-xs transition-all ${
-        isDragging ? 'opacity-30 scale-95' : 'hover:shadow-sm'
-      }`}
+      onClick={onClick}
+      style={{
+        padding: '6px 14px', borderRadius: 100,
+        fontSize: 12, fontWeight: 600, cursor: 'pointer',
+        border: `1px solid ${active ? '#1a1a1a' : 'rgba(0,0,0,0.1)'}`,
+        background: active ? '#1a1a1a' : 'white',
+        color: active ? 'white' : '#666',
+        display: 'flex', alignItems: 'center', gap: 4,
+        transition: 'border-color 150ms ease, color 150ms ease, background 150ms ease, transform 100ms var(--ease-out)',
+        userSelect: 'none',
+      }}
+      onMouseEnter={e => {
+        if (!active) {
+          e.currentTarget.style.borderColor = 'rgba(0,0,0,0.22)';
+          e.currentTarget.style.color = '#333';
+        }
+      }}
+      onMouseLeave={e => {
+        if (!active) {
+          e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)';
+          e.currentTarget.style.color = '#666';
+        }
+      }}
     >
-      {/* Drag Handle (admin only) */}
-      {isAdmin && (
-        <div
-          {...listeners}
-          {...attributes}
-          className={`flex items-center justify-center w-5 ${styles.handle} rounded-l-lg cursor-grab active:cursor-grabbing transition-colors touch-none select-none`}
-          title="Glisser pour déplacer"
-        >
-          <i className={`fas fa-grip-vertical ${styles.handleIcon} text-[9px]`}></i>
-        </div>
+      {checkmark && active && (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
       )}
-      
-      {/* Shift Content (clickable) */}
-      <div
-        onClick={onClick}
-        onPointerDown={(e) => {
-          // Empêcher le drag quand on clique sur le contenu
-          if (isAdmin) {
-            e.stopPropagation();
-          }
-        }}
-        className={`flex-1 px-2 py-1.5 cursor-pointer ${isAdmin ? 'rounded-r-lg' : 'rounded-lg'}`}
-      >
-        <p className={`font-semibold ${styles.text}`}>
-          {shift.startTime} - {shift.endTime}
-        </p>
-        <p className={`${styles.subtext} text-[10px] flex items-center gap-1`}>
-          {styles.icon && <i className={`${styles.icon} text-[8px]`}></i>}
-          {styles.label || shift.role}
-        </p>
-      </div>
-
-      {/* Action Button (admin only) */}
-      {isAdmin && (
-        <div className="absolute -top-1.5 -right-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            type="button"
-            onPointerDown={handleButtonPointerDown}
-            onPointerUp={(e) => e.stopPropagation()}
-            onClick={handleButtonClick}
-            onMouseDown={(e) => e.stopPropagation()}
-            className="w-5 h-5 bg-purple-500 text-white rounded-full text-[9px] flex items-center justify-center hover:bg-purple-600 shadow-md z-20 relative"
-            title="Modifier / Supprimer"
-          >
-            <i className="fas fa-ellipsis-h text-[7px]"></i>
-          </button>
-        </div>
-      )}
-
-      {/* Copy Mode Indicator */}
-      {copyMode && isAdmin && (
-        <div className="absolute top-0.5 left-5">
-          <i className="fas fa-copy text-blue-400 text-[8px]"></i>
-        </div>
-      )}
+      {children}
     </div>
   );
 }
 
-// Shift Modal
-interface ShiftModalProps {
+// ── Shift Modal ──
+function ShiftModal({ shift, employees, onSave, onDelete, onClose }: {
   shift: Shift | null;
   employees: Employee[];
   onSave: (shift: Shift) => void;
+  onDelete?: () => void;
   onClose: () => void;
-}
-
-function ShiftModal({ shift, employees, onSave, onClose }: ShiftModalProps) {
+}) {
   const [employeeId, setEmployeeId] = useState(shift?.employeeId || employees[0]?.id || '');
   const [date, setDate] = useState(shift?.date || format(new Date(), 'yyyy-MM-dd'));
-  const [startTime, setStartTime] = useState(shift?.startTime || '09:00');
-  const [endTime, setEndTime] = useState(shift?.endTime || '17:00');
+  const [startTime, setStartTime] = useState(shift?.startTime || '22:00');
+  const [endTime, setEndTime] = useState(shift?.endTime || '05:00');
   const [role, setRole] = useState(shift?.role || '');
   const [notes, setNotes] = useState(shift?.notes || '');
 
@@ -887,124 +453,96 @@ function ShiftModal({ shift, employees, onSave, onClose }: ShiftModalProps) {
     e.preventDefault();
     onSave({
       id: shift?.id || `shift-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      employeeId,
-      date,
-      startTime,
-      endTime,
-      role,
-      notes,
+      employeeId, date, startTime, endTime, role, notes,
+      status: shift?.status,
     });
   };
 
+  const inputStyle = {
+    width: '100%', padding: '8px 12px', borderRadius: 8,
+    border: '1px solid var(--border-2)', fontSize: 13,
+    outline: 'none', transition: 'border-color 150ms ease',
+    background: 'white',
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-        <h2 className="text-xl font-bold text-gray-800 mb-5">
-          {shift?.id ? 'Modifier le shift' : 'Ajouter un shift'}
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 50,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(4px)',
+        animation: 'fadeIn 200ms ease both',
+      }}
+      onClick={onClose}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: 'white', borderRadius: 16, width: '100%', maxWidth: 420,
+          padding: 28, boxShadow: '0 24px 80px rgba(0,0,0,0.15)',
+          animation: 'fadeInUp 300ms var(--ease-out) both',
+        }}
+      >
+        <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 20, letterSpacing: '-0.02em' }}>
+          {shift?.id ? 'Modifier le shift' : 'Nouveau shift'}
         </h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Employé</label>
-            <select
-              value={employeeId}
-              onChange={(e) => setEmployeeId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500"
-              required
-            >
-              {employees.map((emp) => (
-                <option key={emp.id} value={emp.id}>
-                  {emp.firstName} {emp.lastName}
-                </option>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4, display: 'block' }}>Employe</label>
+            <select value={employeeId} onChange={e => setEmployeeId(e.target.value)} style={inputStyle}>
+              {employees.map(emp => (
+                <option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500"
-              required
-            />
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4, display: 'block' }}>Date</label>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inputStyle} required />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Début</label>
-              <input
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500"
-                required
-              />
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4, display: 'block' }}>Debut</label>
+              <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={inputStyle} required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Fin</label>
-              <input
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500"
-                required
-              />
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4, display: 'block' }}>Fin</label>
+              <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={inputStyle} required />
             </div>
           </div>
-          {(() => {
-            const [sh, sm] = startTime.split(':').map(Number);
-            const [eh, em] = endTime.split(':').map(Number);
-            const crossesMidnight = (eh * 60 + em) < (sh * 60 + sm);
-            if (crossesMidnight) {
-              return (
-                <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm text-purple-700 flex items-start gap-2">
-                  <i className="fas fa-info-circle mt-0.5"></i>
-                  <div>
-                    <p className="font-medium">Shift de nuit détecté</p>
-                    <p className="text-xs mt-1">Ce shift sera automatiquement divisé en deux :</p>
-                    <ul className="text-xs mt-1 ml-4 list-disc">
-                      <li>{startTime} - 23:59 (jour sélectionné)</li>
-                      <li>00:00 - {endTime} (jour suivant)</li>
-                    </ul>
-                  </div>
-                </div>
-              );
-            }
-            return null;
-          })()}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Poste</label>
-            <input
-              type="text"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500"
-              placeholder="Ex: Barman, Agent de sécurité..."
-              required
-            />
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4, display: 'block' }}>Poste</label>
+            <input type="text" value={role} onChange={e => setRole(e.target.value)} style={inputStyle} placeholder="Barman, DJ..." required />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optionnel)</label>
-            <input
-              type="text"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500"
-              placeholder="Remplacement, soirée spéciale..."
-            />
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4, display: 'block' }}>Notes</label>
+            <input type="text" value={notes} onChange={e => setNotes(e.target.value)} style={inputStyle} placeholder="Optionnel" />
           </div>
-          <div className="flex gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-medium"
-            >
+          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+            {onDelete && (
+              <button
+                type="button"
+                onClick={() => { if (confirm('Supprimer ce shift ?')) onDelete(); }}
+                style={{
+                  padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                  border: '1px solid rgba(217,48,37,0.2)', background: 'rgba(217,48,37,0.06)',
+                  color: '#d93025', cursor: 'pointer',
+                }}
+              >
+                Supprimer
+              </button>
+            )}
+            <div style={{ flex: 1 }} />
+            <button type="button" onClick={onClose} style={{
+              padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+              border: '1px solid var(--border-2)', background: 'white', color: '#444', cursor: 'pointer',
+            }}>
               Annuler
             </button>
-            <button
-              type="submit"
-              className="flex-1 px-4 py-2.5 bg-gradient-to-r from-purple-500 to-violet-600 text-white rounded-xl hover:shadow-lg transition-all font-medium"
-            >
-              Enregistrer
+            <button type="submit" style={{
+              padding: '8px 20px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+              border: 'none', background: '#1a1a1a', color: 'white', cursor: 'pointer',
+            }}>
+              {shift?.id ? 'Enregistrer' : 'Creer'}
             </button>
           </div>
         </form>
