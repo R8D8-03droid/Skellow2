@@ -1,45 +1,92 @@
-import { useState } from 'react';
-import { Employee, Shift, PaySlip } from '../types';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDaysInMonth } from 'date-fns';
-import { fr } from 'date-fns/locale';
-import * as XLSX from 'xlsx';
-import { IDCC_1790_RULES, calculateOvertime, calculateNightHours } from '../idcc1790';
-
-interface PaySlipGeneratorProps {
-  employees: Employee[];
-  shifts: Shift[];
-}
-
+import { useEffect, useState } from "react";
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  eachDayOfInterval,
+  getDaysInMonth,
+} from "date-fns";
+import { fr } from "date-fns/locale";
+import {
+  ArrowDownToLine,
+  ArrowRight,
+  Calculator,
+  Check,
+  FileSpreadsheet,
+  FileText,
+  Info,
+  Moon,
+} from "lucide-react";
+import { Employee, Shift, PaySlip } from "../types";
+import {
+  IDCC_1790_RULES,
+  calculateOvertime,
+  calculateNightHours,
+} from "../idcc1790";
+import {
+  Avatar,
+  Badge,
+  Button,
+  EmptyState,
+  IconButton,
+  Modal,
+  PageHeader,
+  money,
+  number,
+  personName,
+} from "./ui";
 interface GeneratedPaySlip extends PaySlip {
   employee: Employee;
 }
-
-export default function PaySlipGenerator({ employees, shifts }: PaySlipGeneratorProps) {
+export default function PaySlipGenerator({
+  employees,
+  shifts,
+  notify,
+}: {
+  employees: Employee[];
+  shifts: Shift[];
+  notify: (message: string, tone?: "success" | "error") => void;
+}) {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [generatedSlips, setGeneratedSlips] = useState<GeneratedPaySlip[]>([]);
-  const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
-
-  const activeEmployees = employees.filter(e => e.active);
-
-  const calculateMonthlyHours = (employeeId: string, month: number, year: number) => {
+  const [selectedEmployee, setSelectedEmployee] = useState("all");
+  const [detail, setDetail] = useState<GeneratedPaySlip | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const activeEmployees = employees.filter((e) => e.active);
+  useEffect(() => {
+    setGeneratedSlips([]);
+    setDetail(null);
+  }, [selectedMonth, selectedYear, selectedEmployee, employees, shifts]);
+  const calculateMonthlyHours = (
+    employeeId: string,
+    month: number,
+    year: number,
+  ) => {
     const monthStart = startOfMonth(new Date(year, month - 1));
     const monthEnd = endOfMonth(new Date(year, month - 1));
     const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
     let totalMinutes = 0;
     let nightMinutes = 0;
 
-    days.forEach(day => {
-      const dateStr = format(day, 'yyyy-MM-dd');
-      const dayShifts = shifts.filter(s => s.employeeId === employeeId && s.date === dateStr);
-      dayShifts.forEach(shift => {
-        if (shift.status === 'absence_justified' || shift.status === 'absence_unjustified') return;
-        const [sh, sm] = shift.startTime.split(':').map(Number);
-        const [eh, em] = shift.endTime.split(':').map(Number);
+    days.forEach((day) => {
+      const dateStr = format(day, "yyyy-MM-dd");
+      const dayShifts = shifts.filter(
+        (s) => s.employeeId === employeeId && s.date === dateStr,
+      );
+      dayShifts.forEach((shift) => {
+        if (
+          shift.status === "absence_justified" ||
+          shift.status === "absence_unjustified"
+        )
+          return;
+        const [sh, sm] = shift.startTime.split(":").map(Number);
+        const [eh, em] = shift.endTime.split(":").map(Number);
         let minutes = eh * 60 + em - sh * 60 - sm;
         if (minutes < 0) minutes += 24 * 60;
         totalMinutes += minutes;
-        nightMinutes += calculateNightHours(shift.startTime, shift.endTime) * 60;
+        nightMinutes +=
+          calculateNightHours(shift.startTime, shift.endTime) * 60;
       });
     });
 
@@ -58,10 +105,16 @@ export default function PaySlipGenerator({ employees, shifts }: PaySlipGenerator
   };
 
   const generatePaySlip = (employee: Employee): GeneratedPaySlip => {
-    const { totalHours, regularHours, overtime25Hours, overtime50Hours, nightHours } = calculateMonthlyHours(employee.id, selectedMonth, selectedYear);
+    const {
+      totalHours,
+      regularHours,
+      overtime25Hours,
+      overtime50Hours,
+      nightHours,
+    } = calculateMonthlyHours(employee.id, selectedMonth, selectedYear);
     const baseSalary = regularHours * employee.hourlyRate;
     const overtime25Pay = overtime25Hours * employee.hourlyRate * 1.25;
-    const overtime50Pay = overtime50Hours * employee.hourlyRate * 1.50;
+    const overtime50Pay = overtime50Hours * employee.hourlyRate * 1.5;
     const nightBonus = nightHours * IDCC_1790_RULES.nightWorkBonus;
     const grossSalary = baseSalary + overtime25Pay + overtime50Pay + nightBonus;
     const socialCharges = grossSalary * 0.22;
@@ -69,184 +122,452 @@ export default function PaySlipGenerator({ employees, shifts }: PaySlipGenerator
 
     return {
       id: `payslip-${employee.id}-${selectedYear}-${selectedMonth}`,
-      employeeId: employee.id, month: selectedMonth, year: selectedYear,
-      totalHours, regularHours, overtime25Hours, overtime50Hours, nightHours,
-      baseSalary, overtime25Pay, overtime50Pay, nightBonus,
-      grossSalary, socialCharges, netSalary,
-      generatedAt: new Date().toISOString(), employee,
+      employeeId: employee.id,
+      month: selectedMonth,
+      year: selectedYear,
+      totalHours,
+      regularHours,
+      overtime25Hours,
+      overtime50Hours,
+      nightHours,
+      baseSalary,
+      overtime25Pay,
+      overtime50Pay,
+      nightBonus,
+      grossSalary,
+      socialCharges,
+      netSalary,
+      generatedAt: new Date().toISOString(),
+      employee,
     };
   };
 
   const handleGenerate = () => {
-    const toProcess = selectedEmployee === 'all' ? activeEmployees : activeEmployees.filter(e => e.id === selectedEmployee);
-    setGeneratedSlips(toProcess.map(emp => generatePaySlip(emp)));
+    const toProcess =
+      selectedEmployee === "all"
+        ? activeEmployees
+        : activeEmployees.filter((e) => e.id === selectedEmployee);
+    setGeneratedSlips(toProcess.map((emp) => generatePaySlip(emp)));
+    notify("La préparation de paie a été calculée.");
   };
 
-  const generateExcel = () => {
+  const generateExcel = async () => {
     if (generatedSlips.length === 0) return;
+    const XLSX = await import("xlsx");
     const wb = XLSX.utils.book_new();
     const data = [
-      ['Nom', 'Prenom', 'Poste', 'Heures totales', 'Heures normales', 'HS 25%', 'HS 50%', 'Heures nuit', 'Brut', 'Charges', 'Net'],
-      ...generatedSlips.map(s => [
-        s.employee.lastName, s.employee.firstName, s.employee.position,
-        +s.totalHours.toFixed(2), +s.regularHours.toFixed(2), +s.overtime25Hours.toFixed(2),
-        +s.overtime50Hours.toFixed(2), +s.nightHours.toFixed(2),
-        +s.grossSalary.toFixed(2), +s.socialCharges.toFixed(2), +s.netSalary.toFixed(2),
+      [
+        "Nom",
+        "Prenom",
+        "Poste",
+        "Heures totales",
+        "Heures normales",
+        "HS 25%",
+        "HS 50%",
+        "Heures nuit",
+        "Brut",
+        "Charges",
+        "Net",
+      ],
+      ...generatedSlips.map((s) => [
+        s.employee.lastName,
+        s.employee.firstName,
+        s.employee.position,
+        +s.totalHours.toFixed(2),
+        +s.regularHours.toFixed(2),
+        +s.overtime25Hours.toFixed(2),
+        +s.overtime50Hours.toFixed(2),
+        +s.nightHours.toFixed(2),
+        +s.grossSalary.toFixed(2),
+        +s.socialCharges.toFixed(2),
+        +s.netSalary.toFixed(2),
       ]),
     ];
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(data), 'Paie');
-    XLSX.writeFile(wb, `paie_${selectedYear}_${String(selectedMonth).padStart(2, '0')}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(data), "Paie");
+    XLSX.writeFile(
+      wb,
+      `paie_${selectedYear}_${String(selectedMonth).padStart(2, "0")}.xlsx`,
+    );
   };
 
-  const months = ['Janvier', 'Fevrier', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Aout', 'Septembre', 'Octobre', 'Novembre', 'Decembre'];
-
-  const inputStyle: React.CSSProperties = {
-    padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-2)',
-    fontSize: 13, outline: 'none', background: 'white', width: '100%',
+  const pdf = async (slip: GeneratedPaySlip) => {
+    const { jsPDF } = await import("jspdf");
+    const { default: autoTable } = await import("jspdf-autotable");
+    const doc = new jsPDF();
+    doc.setFontSize(24);
+    doc.text("skellow.", 18, 22);
+    doc.setFontSize(14);
+    doc.text("Préparation de paie — estimation", 18, 37);
+    doc.setFontSize(11);
+    doc.text(
+      `${personName(slip.employee)} | ${format(new Date(slip.year, slip.month - 1), "MMMM yyyy", { locale: fr })}`,
+      18,
+      47,
+    );
+    autoTable(doc, {
+      startY: 57,
+      head: [["Élément", "Volume", "Montant"]],
+      body: [
+        [
+          "Heures normales",
+          `${slip.regularHours.toFixed(2)} h`,
+          `${slip.baseSalary.toFixed(2)} EUR`,
+        ],
+        [
+          "Heures supplémentaires 25 %",
+          `${slip.overtime25Hours.toFixed(2)} h`,
+          `${slip.overtime25Pay.toFixed(2)} EUR`,
+        ],
+        [
+          "Heures supplémentaires 50 %",
+          `${slip.overtime50Hours.toFixed(2)} h`,
+          `${slip.overtime50Pay.toFixed(2)} EUR`,
+        ],
+        [
+          "Prime de nuit",
+          `${slip.nightHours.toFixed(2)} h`,
+          `${slip.nightBonus.toFixed(2)} EUR`,
+        ],
+        ["Total brut estimé", "", `${slip.grossSalary.toFixed(2)} EUR`],
+        [
+          "Cotisations estimées (22 %)",
+          "",
+          `${slip.socialCharges.toFixed(2)} EUR`,
+        ],
+        ["Net estimé", "", `${slip.netSalary.toFixed(2)} EUR`],
+      ],
+      theme: "striped",
+      headStyles: { fillColor: [49, 62, 54] },
+      styles: { font: "helvetica", fontSize: 10, cellPadding: 5 },
+      margin: { left: 18, right: 18 },
+    });
+    doc.setFontSize(9);
+    doc.text(
+      "Document de préparation. Ne constitue pas un bulletin de paie.",
+      18,
+      174,
+    );
+    doc.text(
+      "Les calculs et cotisations doivent être validés par votre gestionnaire de paie.",
+      18,
+      181,
+    );
+    doc.save(
+      `preparation-${slip.employee.lastName}-${slip.year}-${String(slip.month).padStart(2, "0")}.pdf`,
+    );
   };
-  const labelStyle: React.CSSProperties = {
-    fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4, display: 'block',
+  const safeExport = async (action: () => Promise<void>) => {
+    setExporting(true);
+    try {
+      await action();
+      notify("Votre export est prêt.");
+    } catch {
+      notify("L’export a échoué. Réessayez dans un instant.", "error");
+    } finally {
+      setExporting(false);
+    }
   };
-
-  const deptColors: Record<string, string> = {
-    'Bar': 'var(--yellow)', 'Sécurité': 'var(--peach)', 'Accueil/Caisse': 'var(--green)',
-    'DJ/Animation': 'var(--violet)', 'Direction': 'var(--blue)',
+  const months = [
+    "Janvier",
+    "Février",
+    "Mars",
+    "Avril",
+    "Mai",
+    "Juin",
+    "Juillet",
+    "Août",
+    "Septembre",
+    "Octobre",
+    "Novembre",
+    "Décembre",
+  ];
+  const sums = {
+    gross: generatedSlips.reduce((s, v) => s + v.grossSalary, 0),
+    charges: generatedSlips.reduce((s, v) => s + v.socialCharges, 0),
+    net: generatedSlips.reduce((s, v) => s + v.netSalary, 0),
   };
-
   return (
-    <div style={{ padding: '26px 26px', background: 'var(--surface)', minHeight: '100%', animation: 'contentIn 500ms var(--ease-out) 250ms both' }}>
-
-      {/* Header */}
-      <div style={{ marginBottom: 22 }}>
-        <h1 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.03em' }}>Fiches de paie</h1>
-        <p style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 3 }}>Convention IDCC 1790 — 35h, HS +25%/+50%, nuit +1€/h</p>
+    <div className="page payroll-page">
+      <PageHeader
+        title="La paie, en toute clarté."
+        description="Retrouvez les heures, les majorations et les éléments à transmettre."
+      >
+        <Badge tone="sage">
+          <FileText size={13} />
+          Préparation de paie
+        </Badge>
+      </PageHeader>
+      <div className="page-tabs">
+        <div className="tab-buttons">
+          <span className="active">
+            <Calculator size={16} />
+            Calcul mensuel
+          </span>
+        </div>
+        <span className="small muted">Paramétrage existant · IDCC 1790</span>
       </div>
-
-      {/* Controls */}
-      <div style={{
-        background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 14,
-        padding: '20px 24px', marginBottom: 8,
-        display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 12, alignItems: 'end',
-      }}>
-        <div>
-          <label style={labelStyle}>Mois</label>
-          <select value={selectedMonth} onChange={e => setSelectedMonth(+e.target.value)} style={inputStyle}>
-            {months.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-          </select>
-        </div>
-        <div>
-          <label style={labelStyle}>Annee</label>
-          <select value={selectedYear} onChange={e => setSelectedYear(+e.target.value)} style={inputStyle}>
-            {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 1 + i).map(y => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label style={labelStyle}>Employe</label>
-          <select value={selectedEmployee} onChange={e => setSelectedEmployee(e.target.value)} style={inputStyle}>
-            <option value="all">Tous</option>
-            {activeEmployees.map(emp => <option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</option>)}
-          </select>
-        </div>
-        <button onClick={handleGenerate} style={{
-          padding: '8px 20px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-          border: 'none', background: '#1a1a1a', color: 'white', cursor: 'pointer',
-          height: 37,
-        }}>
-          Calculer
-        </button>
-      </div>
-
-      {/* Results */}
-      {generatedSlips.length > 0 && (
-        <div style={{
-          background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 14,
-          overflow: 'hidden',
-        }}>
-          {/* Summary bar */}
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '16px 24px', borderBottom: '1px solid var(--border)',
-          }}>
-            <div style={{ display: 'flex', gap: 24 }}>
-              <Stat label="Masse brute" value={`${generatedSlips.reduce((s, sl) => s + sl.grossSalary, 0).toFixed(0)}€`} />
-              <Stat label="Total charges" value={`${generatedSlips.reduce((s, sl) => s + sl.socialCharges, 0).toFixed(0)}€`} color="var(--peach)" />
-              <Stat label="Masse nette" value={`${generatedSlips.reduce((s, sl) => s + sl.netSalary, 0).toFixed(0)}€`} color="var(--green)" />
-            </div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button onClick={generateExcel} style={{
-                padding: '6px 12px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                border: '1px solid var(--border-2)', background: 'white', color: '#444', cursor: 'pointer',
-              }}>Export Excel</button>
-            </div>
+      <section className="payroll-controls panel">
+        <div className="section-heading">
+          <div>
+            <h2>Commençons par la période.</h2>
+            <p>Les heures sont calculées à partir des services du planning.</p>
           </div>
-
-          {/* Table header */}
-          <div style={{
-            display: 'grid', gridTemplateColumns: '1fr 80px 70px 70px 70px 90px 90px',
-            gap: 8, padding: '10px 24px', borderBottom: '1px solid var(--border)',
-          }}>
-            {['Employe', 'Total h', 'HS 25%', 'HS 50%', 'Nuit', 'Brut', 'Net'].map(h => (
-              <span key={h} style={{
-                fontSize: 10.5, fontWeight: 600, color: 'var(--text-dim)',
-                letterSpacing: '0.05em', textTransform: 'uppercase',
-              }}>{h}</span>
-            ))}
-          </div>
-
-          {/* Rows */}
-          {generatedSlips.map((slip, i) => (
-            <div key={slip.id} style={{
-              display: 'grid', gridTemplateColumns: '1fr 80px 70px 70px 70px 90px 90px',
-              gap: 8, alignItems: 'center', padding: '14px 24px',
-              borderBottom: i < generatedSlips.length - 1 ? '1px solid var(--border)' : 'none',
-              transition: 'background 120ms ease',
-              animation: `fadeInUp 350ms var(--ease-out) ${i * 40}ms both`,
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+          <span className="large-icon">
+            <CalendarIcon />
+          </span>
+        </div>
+        <div className="payroll-form">
+          <label className="field">
+            Mois
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(Number(e.target.value))}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{
-                  width: 28, height: 28, borderRadius: '50%',
-                  background: deptColors[slip.employee.department] || 'var(--text-muted)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 10, fontWeight: 700, color: 'white', flexShrink: 0,
-                }}>{slip.employee.firstName[0]}{slip.employee.lastName[0]}</div>
-                <div>
-                  <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{slip.employee.firstName} {slip.employee.lastName}</p>
-                  <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>{slip.employee.position}</p>
-                </div>
-              </div>
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{slip.totalHours.toFixed(1)}h</span>
-              <span style={{ fontSize: 12, color: slip.overtime25Hours > 0 ? 'var(--yellow)' : 'var(--text-dim)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{slip.overtime25Hours.toFixed(1)}h</span>
-              <span style={{ fontSize: 12, color: slip.overtime50Hours > 0 ? 'var(--peach)' : 'var(--text-dim)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{slip.overtime50Hours.toFixed(1)}h</span>
-              <span style={{ fontSize: 12, color: slip.nightHours > 0 ? 'var(--violet)' : 'var(--text-dim)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{slip.nightHours.toFixed(1)}h</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{slip.grossSalary.toFixed(0)}€</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)', fontVariantNumeric: 'tabular-nums' }}>{slip.netSalary.toFixed(0)}€</span>
+              {months.map((m, i) => (
+                <option key={m} value={i + 1}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            Année
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+            >
+              {Array.from(
+                { length: 7 },
+                (_, i) => new Date().getFullYear() - 3 + i,
+              ).map((y) => (
+                <option key={y}>{y}</option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            Membres
+            <select
+              value={selectedEmployee}
+              onChange={(e) => setSelectedEmployee(e.target.value)}
+            >
+              <option value="all">
+                Toute l’équipe ({activeEmployees.length})
+              </option>
+              {activeEmployees.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {personName(e)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Button
+            variant="primary"
+            onClick={handleGenerate}
+            disabled={!activeEmployees.length}
+          >
+            <Calculator size={16} />
+            Calculer la préparation
+          </Button>
+        </div>
+      </section>
+      {generatedSlips.length ? (
+        <>
+          <div className="payroll-summary">
+            <div>
+              <span>Brut estimé</span>
+              <strong>{money(sums.gross)}</strong>
             </div>
-          ))}
-        </div>
+            <div>
+              <span>Cotisations estimées</span>
+              <strong>{money(sums.charges)}</strong>
+            </div>
+            <div>
+              <span>Net estimé</span>
+              <strong>{money(sums.net)}</strong>
+            </div>
+          </div>
+          <div className="section-toolbar">
+            <div>
+              <h2>
+                {months[selectedMonth - 1]} {selectedYear}
+              </h2>
+              <p className="small muted">
+                {generatedSlips.length} préparations disponibles
+              </p>
+            </div>
+            <Button
+              onClick={() => safeExport(generateExcel)}
+              disabled={exporting}
+            >
+              <FileSpreadsheet size={16} />
+              {exporting ? "Export en cours…" : "Exporter en Excel"}
+            </Button>
+          </div>
+          <div className="table-panel">
+            <table className="data-table payroll-table">
+              <thead>
+                <tr>
+                  <th>Membre</th>
+                  <th>Heures</th>
+                  <th>Nuit</th>
+                  <th>HS 25 %</th>
+                  <th>HS 50 %</th>
+                  <th>Brut estimé</th>
+                  <th>Net estimé</th>
+                  <th>
+                    <span className="sr-only">Détails</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {generatedSlips.map((slip) => (
+                  <tr key={slip.id}>
+                    <td>
+                      <button
+                        className="table-person"
+                        onClick={() => setDetail(slip)}
+                      >
+                        <Avatar employee={slip.employee} size="sm" />
+                        <span>
+                          <strong>{personName(slip.employee)}</strong>
+                          <small>{slip.employee.position}</small>
+                        </span>
+                      </button>
+                    </td>
+                    <td className="numeric">{number(slip.totalHours)} h</td>
+                    <td className="numeric">{number(slip.nightHours)} h</td>
+                    <td className="numeric">
+                      {number(slip.overtime25Hours)} h
+                    </td>
+                    <td className="numeric">
+                      {number(slip.overtime50Hours)} h
+                    </td>
+                    <td className="numeric">{money(slip.grossSalary)}</td>
+                    <td className="numeric payroll-net">
+                      {money(slip.netSalary)}
+                    </td>
+                    <td>
+                      <IconButton
+                        label={`Détails de la paie de ${personName(slip.employee)}`}
+                        onClick={() => setDetail(slip)}
+                      >
+                        <ArrowRight size={16} />
+                      </IconButton>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : (
+        <section className="payroll-empty panel">
+          <div className="paper-stack" aria-hidden="true">
+            <span />
+            <span />
+            <div>
+              <FileText size={27} />
+              <i />
+              <i />
+              <i />
+            </div>
+          </div>
+          <h2>Une fin de mois bien préparée.</h2>
+          <p>
+            Sélectionnez votre période et vos membres.
+            <br />
+            Skellow rassemble les éléments du planning pour vous.
+          </p>
+          <div className="payroll-steps">
+            <span>
+              <Check size={14} />
+              Heures du planning
+            </span>
+            <span>
+              <Moon size={14} />
+              Travail de nuit
+            </span>
+            <span>
+              <ArrowDownToLine size={14} />
+              Exports Excel et PDF
+            </span>
+          </div>
+        </section>
       )}
-
-      {generatedSlips.length === 0 && (
-        <div style={{
-          background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 14,
-          padding: '48px 0', textAlign: 'center',
-        }}>
-          <p style={{ fontSize: 13, color: 'var(--text-dim)', fontWeight: 500 }}>Selectionnez un mois et cliquez sur "Calculer"</p>
-        </div>
+      <div className="info-note payroll-disclaimer">
+        <Info size={18} />
+        <p>
+          Ces montants sont des estimations basées sur le paramétrage existant,
+          avec des cotisations forfaitaires de 22 %. Faites valider les éléments
+          par votre gestionnaire de paie avant d’établir les bulletins.
+        </p>
+      </div>
+      {detail && (
+        <Modal
+          title="Détail de la préparation"
+          description={`${personName(detail.employee)} · ${months[detail.month - 1]} ${detail.year}`}
+          onClose={() => setDetail(null)}
+        >
+          <div className="payroll-detail">
+            {[
+              [
+                "Heures normales",
+                `${number(detail.regularHours)} h`,
+                money(detail.baseSalary),
+              ],
+              [
+                "Heures supplémentaires à 25 %",
+                `${number(detail.overtime25Hours)} h`,
+                money(detail.overtime25Pay),
+              ],
+              [
+                "Heures supplémentaires à 50 %",
+                `${number(detail.overtime50Hours)} h`,
+                money(detail.overtime50Pay),
+              ],
+              [
+                "Prime de nuit",
+                `${number(detail.nightHours)} h`,
+                money(detail.nightBonus),
+              ],
+            ].map(([label, hours, value]) => (
+              <div key={label}>
+                <span>
+                  {label}
+                  <small>{hours}</small>
+                </span>
+                <strong>{value}</strong>
+              </div>
+            ))}
+            <div>
+              <span>Brut estimé</span>
+              <strong>{money(detail.grossSalary)}</strong>
+            </div>
+            <div>
+              <span>Cotisations estimées</span>
+              <strong>− {money(detail.socialCharges)}</strong>
+            </div>
+            <div className="payroll-net">
+              <span>Net estimé</span>
+              <strong>{money(detail.netSalary)}</strong>
+            </div>
+          </div>
+          <div className="dialog-footer">
+            <Button onClick={() => setDetail(null)}>Fermer</Button>
+            <Button
+              variant="primary"
+              disabled={exporting}
+              onClick={() => safeExport(() => pdf(detail))}
+            >
+              <ArrowDownToLine size={16} />
+              {exporting ? "Export…" : "Exporter en PDF"}
+            </Button>
+          </div>
+        </Modal>
       )}
     </div>
   );
 }
-
-function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
-  return (
-    <div>
-      <p style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 2 }}>{label}</p>
-      <p style={{ fontSize: 16, fontWeight: 800, color: color || 'var(--text)', letterSpacing: '-0.03em' }}>{value}</p>
-    </div>
-  );
+function CalendarIcon() {
+  return <FileText size={22} />;
 }

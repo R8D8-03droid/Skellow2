@@ -3,3 +3,10 @@ node_modules/
 dist/
 build/
 *.log
+.env
+.env.*
+!.env.example
+supabase/.temp/
+supabase/.branches/
+.context/
+.impeccable/hook.cache.json

@@ -1,0 +1,533 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-16T04:12:18.881915+00:00",
+  "title": "Design System: Skellow",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Primary",
+        "canonical": "#123c2d",
+        "tonalRamp": [
+          "oklch(15% 0.0540 166.21)",
+          "oklch(26% 0.0540 166.21)",
+          "oklch(38% 0.0540 166.21)",
+          "oklch(49% 0.0540 166.21)",
+          "oklch(61% 0.0540 166.21)",
+          "oklch(72% 0.0540 166.21)",
+          "oklch(84% 0.0540 166.21)",
+          "oklch(95% 0.0540 166.21)"
+        ]
+      },
+      "primary-hover": {
+        "role": "primary",
+        "displayName": "Primary hover",
+        "canonical": "#1d513c",
+        "tonalRamp": [
+          "oklch(15% 0.0664 163.71)",
+          "oklch(26% 0.0664 163.71)",
+          "oklch(38% 0.0664 163.71)",
+          "oklch(49% 0.0664 163.71)",
+          "oklch(61% 0.0664 163.71)",
+          "oklch(72% 0.0664 163.71)",
+          "oklch(84% 0.0664 163.71)",
+          "oklch(95% 0.0664 163.71)"
+        ]
+      },
+      "graphite": {
+        "role": "neutral",
+        "displayName": "Graphite",
+        "canonical": "#1e3027",
+        "tonalRamp": [
+          "oklch(15% 0.0289 162.17)",
+          "oklch(26% 0.0289 162.17)",
+          "oklch(38% 0.0289 162.17)",
+          "oklch(49% 0.0289 162.17)",
+          "oklch(61% 0.0289 162.17)",
+          "oklch(72% 0.0289 162.17)",
+          "oklch(84% 0.0289 162.17)",
+          "oklch(95% 0.0289 162.17)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Muted",
+        "canonical": "#626f64",
+        "tonalRamp": [
+          "oklch(15% 0.0231 149.78)",
+          "oklch(26% 0.0231 149.78)",
+          "oklch(38% 0.0231 149.78)",
+          "oklch(49% 0.0231 149.78)",
+          "oklch(61% 0.0231 149.78)",
+          "oklch(72% 0.0231 149.78)",
+          "oklch(84% 0.0231 149.78)",
+          "oklch(95% 0.0231 149.78)"
+        ]
+      },
+      "mineral": {
+        "role": "neutral",
+        "displayName": "Mineral",
+        "canonical": "#e7eae3",
+        "tonalRamp": [
+          "oklch(15% 0.0099 125.68)",
+          "oklch(26% 0.0099 125.68)",
+          "oklch(38% 0.0099 125.68)",
+          "oklch(49% 0.0099 125.68)",
+          "oklch(61% 0.0099 125.68)",
+          "oklch(72% 0.0099 125.68)",
+          "oklch(84% 0.0099 125.68)",
+          "oklch(95% 0.0099 125.68)"
+        ]
+      },
+      "rail": {
+        "role": "neutral",
+        "displayName": "Rail",
+        "canonical": "#f4f6f0",
+        "tonalRamp": [
+          "oklch(15% 0.0082 121.63)",
+          "oklch(26% 0.0082 121.63)",
+          "oklch(38% 0.0082 121.63)",
+          "oklch(49% 0.0082 121.63)",
+          "oklch(61% 0.0082 121.63)",
+          "oklch(72% 0.0082 121.63)",
+          "oklch(84% 0.0082 121.63)",
+          "oklch(95% 0.0082 121.63)"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "oklch(15% 0.0000 89.88)",
+          "oklch(26% 0.0000 89.88)",
+          "oklch(38% 0.0000 89.88)",
+          "oklch(49% 0.0000 89.88)",
+          "oklch(61% 0.0000 89.88)",
+          "oklch(72% 0.0000 89.88)",
+          "oklch(84% 0.0000 89.88)",
+          "oklch(95% 0.0000 89.88)"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Surface",
+        "canonical": "#f6f8f4",
+        "tonalRamp": [
+          "oklch(15% 0.0057 128.53)",
+          "oklch(26% 0.0057 128.53)",
+          "oklch(38% 0.0057 128.53)",
+          "oklch(49% 0.0057 128.53)",
+          "oklch(61% 0.0057 128.53)",
+          "oklch(72% 0.0057 128.53)",
+          "oklch(84% 0.0057 128.53)",
+          "oklch(95% 0.0057 128.53)"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Border",
+        "canonical": "#e0e7df",
+        "tonalRamp": [
+          "oklch(15% 0.0130 141.81)",
+          "oklch(26% 0.0130 141.81)",
+          "oklch(38% 0.0130 141.81)",
+          "oklch(49% 0.0130 141.81)",
+          "oklch(61% 0.0130 141.81)",
+          "oklch(72% 0.0130 141.81)",
+          "oklch(84% 0.0130 141.81)",
+          "oklch(95% 0.0130 141.81)"
+        ]
+      },
+      "border-strong": {
+        "role": "neutral",
+        "displayName": "Border strong",
+        "canonical": "#cdd8cf",
+        "tonalRamp": [
+          "oklch(15% 0.0170 151.07)",
+          "oklch(26% 0.0170 151.07)",
+          "oklch(38% 0.0170 151.07)",
+          "oklch(49% 0.0170 151.07)",
+          "oklch(61% 0.0170 151.07)",
+          "oklch(72% 0.0170 151.07)",
+          "oklch(84% 0.0170 151.07)",
+          "oklch(95% 0.0170 151.07)"
+        ]
+      },
+      "sage": {
+        "role": "secondary",
+        "displayName": "Sage",
+        "canonical": "#326747",
+        "tonalRamp": [
+          "oklch(15% 0.0776 155.35)",
+          "oklch(26% 0.0776 155.35)",
+          "oklch(38% 0.0776 155.35)",
+          "oklch(49% 0.0776 155.35)",
+          "oklch(61% 0.0776 155.35)",
+          "oklch(72% 0.0776 155.35)",
+          "oklch(84% 0.0776 155.35)",
+          "oklch(95% 0.0776 155.35)"
+        ]
+      },
+      "blue-wash": {
+        "role": "secondary",
+        "displayName": "Blue wash",
+        "canonical": "#eaf0f8",
+        "tonalRamp": [
+          "oklch(15% 0.0125 255.51)",
+          "oklch(26% 0.0125 255.51)",
+          "oklch(38% 0.0125 255.51)",
+          "oklch(49% 0.0125 255.51)",
+          "oklch(61% 0.0125 255.51)",
+          "oklch(72% 0.0125 255.51)",
+          "oklch(84% 0.0125 255.51)",
+          "oklch(95% 0.0125 255.51)"
+        ]
+      },
+      "blue-ink": {
+        "role": "secondary",
+        "displayName": "Blue ink",
+        "canonical": "#466182",
+        "tonalRamp": [
+          "oklch(15% 0.0625 253.90)",
+          "oklch(26% 0.0625 253.90)",
+          "oklch(38% 0.0625 253.90)",
+          "oklch(49% 0.0625 253.90)",
+          "oklch(61% 0.0625 253.90)",
+          "oklch(72% 0.0625 253.90)",
+          "oklch(84% 0.0625 253.90)",
+          "oklch(95% 0.0625 253.90)"
+        ]
+      },
+      "lilac-wash": {
+        "role": "secondary",
+        "displayName": "Lilac wash",
+        "canonical": "#eeebf7",
+        "tonalRamp": [
+          "oklch(15% 0.0163 297.52)",
+          "oklch(26% 0.0163 297.52)",
+          "oklch(38% 0.0163 297.52)",
+          "oklch(49% 0.0163 297.52)",
+          "oklch(61% 0.0163 297.52)",
+          "oklch(72% 0.0163 297.52)",
+          "oklch(84% 0.0163 297.52)",
+          "oklch(95% 0.0163 297.52)"
+        ]
+      },
+      "lilac-ink": {
+        "role": "secondary",
+        "displayName": "Lilac ink",
+        "canonical": "#6a548b",
+        "tonalRamp": [
+          "oklch(15% 0.0890 301.63)",
+          "oklch(26% 0.0890 301.63)",
+          "oklch(38% 0.0890 301.63)",
+          "oklch(49% 0.0890 301.63)",
+          "oklch(61% 0.0890 301.63)",
+          "oklch(72% 0.0890 301.63)",
+          "oklch(84% 0.0890 301.63)",
+          "oklch(95% 0.0890 301.63)"
+        ]
+      },
+      "amber-wash": {
+        "role": "secondary",
+        "displayName": "Amber wash",
+        "canonical": "#faf1dd",
+        "tonalRamp": [
+          "oklch(15% 0.0281 86.64)",
+          "oklch(26% 0.0281 86.64)",
+          "oklch(38% 0.0281 86.64)",
+          "oklch(49% 0.0281 86.64)",
+          "oklch(61% 0.0281 86.64)",
+          "oklch(72% 0.0281 86.64)",
+          "oklch(84% 0.0281 86.64)",
+          "oklch(95% 0.0281 86.64)"
+        ]
+      },
+      "amber-ink": {
+        "role": "secondary",
+        "displayName": "Amber ink",
+        "canonical": "#7f632a",
+        "tonalRamp": [
+          "oklch(15% 0.0827 82.74)",
+          "oklch(26% 0.0827 82.74)",
+          "oklch(38% 0.0827 82.74)",
+          "oklch(49% 0.0827 82.74)",
+          "oklch(61% 0.0827 82.74)",
+          "oklch(72% 0.0827 82.74)",
+          "oklch(84% 0.0827 82.74)",
+          "oklch(95% 0.0827 82.74)"
+        ]
+      },
+      "rose-wash": {
+        "role": "secondary",
+        "displayName": "Rose wash",
+        "canonical": "#faeae7",
+        "tonalRamp": [
+          "oklch(15% 0.0179 30.27)",
+          "oklch(26% 0.0179 30.27)",
+          "oklch(38% 0.0179 30.27)",
+          "oklch(49% 0.0179 30.27)",
+          "oklch(61% 0.0179 30.27)",
+          "oklch(72% 0.0179 30.27)",
+          "oklch(84% 0.0179 30.27)",
+          "oklch(95% 0.0179 30.27)"
+        ]
+      },
+      "rose-ink": {
+        "role": "secondary",
+        "displayName": "Rose ink",
+        "canonical": "#8b534b",
+        "tonalRamp": [
+          "oklch(15% 0.0766 28.78)",
+          "oklch(26% 0.0766 28.78)",
+          "oklch(38% 0.0766 28.78)",
+          "oklch(49% 0.0766 28.78)",
+          "oklch(61% 0.0766 28.78)",
+          "oklch(72% 0.0766 28.78)",
+          "oklch(84% 0.0766 28.78)",
+          "oklch(95% 0.0766 28.78)"
+        ]
+      },
+      "sage-wash": {
+        "role": "secondary",
+        "displayName": "Sage wash",
+        "canonical": "#eaf1e6",
+        "tonalRamp": [
+          "oklch(15% 0.0164 133.82)",
+          "oklch(26% 0.0164 133.82)",
+          "oklch(38% 0.0164 133.82)",
+          "oklch(49% 0.0164 133.82)",
+          "oklch(61% 0.0164 133.82)",
+          "oklch(72% 0.0164 133.82)",
+          "oklch(84% 0.0164 133.82)",
+          "oklch(95% 0.0164 133.82)"
+        ]
+      },
+      "sage-ink": {
+        "role": "secondary",
+        "displayName": "Sage ink",
+        "canonical": "#4d6944",
+        "tonalRamp": [
+          "oklch(15% 0.0661 138.26)",
+          "oklch(26% 0.0661 138.26)",
+          "oklch(38% 0.0661 138.26)",
+          "oklch(49% 0.0661 138.26)",
+          "oklch(61% 0.0661 138.26)",
+          "oklch(72% 0.0661 138.26)",
+          "oklch(84% 0.0661 138.26)",
+          "oklch(95% 0.0661 138.26)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Titre de page",
+        "purpose": "Hiérarchie calme, graisse 480 et approche maîtrisée."
+      },
+      "body": {
+        "displayName": "Texte courant",
+        "purpose": "Informations de gestion compactes et lisibles."
+      }
+    },
+    "shadows": [
+      {
+        "name": "control",
+        "value": "0 1px 2px #252d2210, inset 0 1px 0 #ffffff",
+        "purpose": "Contact des commandes."
+      },
+      {
+        "name": "glass",
+        "value": "inset 0 1px 0 #fff, inset 0 -1px 0 #e0e4d6a6, 0 2px 4px #38442a0a, 0 0 0 1px #3c492718",
+        "purpose": "Bord optique des sélecteurs et notifications."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(.22,1,.36,1)",
+        "purpose": "Départ immédiat et arrêt doux."
+      },
+      {
+        "name": "press",
+        "value": "150ms",
+        "purpose": "Retour de pression et survol."
+      },
+      {
+        "name": "selection",
+        "value": "260ms",
+        "purpose": "Capsule de sélection partagée."
+      },
+      {
+        "name": "dialog",
+        "value": "220ms",
+        "purpose": "Entrée des fenêtres de saisie."
+      },
+      {
+        "name": "exit",
+        "value": "140ms",
+        "purpose": "Sortie des fenêtres et notifications."
+      },
+      {
+        "name": "calendar",
+        "value": "220ms",
+        "purpose": "Continuité du changement de date."
+      },
+      {
+        "name": "collection",
+        "value": "240–280ms",
+        "purpose": "Position des membres après filtrage."
+      },
+      {
+        "name": "timeline",
+        "value": "400ms + max 120ms stagger",
+        "purpose": "Lecture de la durée des services à l’entrée dans le viewport."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "phone",
+        "value": "580px"
+      },
+      {
+        "name": "drawer",
+        "value": "800px"
+      },
+      {
+        "name": "narrow-desktop",
+        "value": "1050px"
+      },
+      {
+        "name": "desktop",
+        "value": "1250px"
+      },
+      {
+        "name": "wide",
+        "value": "1600px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Bouton primary",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Commande primary.",
+      "html": "<button class=\"ds-button-primary\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\"><path d=\"M12 5v14M5 12h14\"/></svg>Ajouter un service</button>",
+      "css": ".ds-button-primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:8px 13px;border-radius:8px;font:520 12px/1.4 \"Geist Variable\",sans-serif;cursor:pointer;transition:background-color 150ms,transform 150ms;background:#123c2d;color:#fff;border:1px solid #123c2d;} .ds-button-primary:hover{background:#1d513c;} .ds-button-primary:focus-visible{outline:2px solid #54734b;outline-offset:3px;} .ds-button-primary:active{transform:scale(.97);} .ds-button-primary:disabled{opacity:.42;cursor:not-allowed;} @media(prefers-reduced-motion:reduce){.ds-button-primary{transition:none;} .ds-button-primary:active{transform:none;}}"
+    },
+    {
+      "name": "Bouton secondary",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Commande secondary.",
+      "html": "<button class=\"ds-button-secondary\">Exporter</button>",
+      "css": ".ds-button-secondary{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:8px 13px;border-radius:8px;font:520 12px/1.4 \"Geist Variable\",sans-serif;cursor:pointer;transition:background-color 150ms,transform 150ms;background:#fff;color:#1e3027;border:1px solid #cdd8cf;} .ds-button-secondary:hover{background:#fafcf6;} .ds-button-secondary:focus-visible{outline:2px solid #54734b;outline-offset:3px;} .ds-button-secondary:active{transform:scale(.97);} .ds-button-secondary:disabled{opacity:.42;cursor:not-allowed;} @media(prefers-reduced-motion:reduce){.ds-button-secondary{transition:none;} .ds-button-secondary:active{transform:none;}}"
+    },
+    {
+      "name": "Bouton ghost",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Commande ghost.",
+      "html": "<button class=\"ds-button-ghost\">Voir le planning</button>",
+      "css": ".ds-button-ghost{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:8px 13px;border-radius:8px;font:520 12px/1.4 \"Geist Variable\",sans-serif;cursor:pointer;transition:background-color 150ms,transform 150ms;background:transparent;color:#5c6559;border:1px solid transparent;} .ds-button-ghost:hover{background:#eef2e8;} .ds-button-ghost:focus-visible{outline:2px solid #54734b;outline-offset:3px;} .ds-button-ghost:active{transform:scale(.97);} .ds-button-ghost:disabled{opacity:.42;cursor:not-allowed;} @media(prefers-reduced-motion:reduce){.ds-button-ghost{transition:none;} .ds-button-ghost:active{transform:none;}}"
+    },
+    {
+      "name": "Bouton danger",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Commande danger.",
+      "html": "<button class=\"ds-button-danger\">Confirmer la suppression</button>",
+      "css": ".ds-button-danger{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:8px 13px;border-radius:8px;font:520 12px/1.4 \"Geist Variable\",sans-serif;cursor:pointer;transition:background-color 150ms,transform 150ms;background:#a33d32;color:#fff;border:1px solid #a33d32;} .ds-button-danger:hover{background:#893228;} .ds-button-danger:focus-visible{outline:2px solid #54734b;outline-offset:3px;} .ds-button-danger:active{transform:scale(.97);} .ds-button-danger:disabled{opacity:.42;cursor:not-allowed;} @media(prefers-reduced-motion:reduce){.ds-button-danger{transition:none;} .ds-button-danger:active{transform:none;}}"
+    },
+    {
+      "name": "Champ de saisie",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Saisie bordée, focus visible et libellé explicite.",
+      "html": "<label class=\"ds-field\">Adresse e-mail<input class=\"ds-input\" type=\"email\" placeholder=\"vous@etablissement.fr\"></label>",
+      "css": ".ds-field{display:grid;gap:8px;color:#1e3027;font:12px \"Geist Variable\",sans-serif}.ds-input{min-height:38px;padding:8px 11px;border:1px solid #cdd8cf;border-radius:8px;background:#fff;color:#1e3027;font:13px \"Geist Variable\",sans-serif;caret-color:#326747}.ds-input::placeholder{color:#626f64}.ds-input:hover{border-color:#aebda0}.ds-input:focus-visible{outline:2px solid #54734b;outline-offset:2px}"
+    },
+    {
+      "name": "Navigation",
+      "kind": "nav",
+      "refersTo": "navigation",
+      "description": "Sélection calme, libellé toujours présent.",
+      "html": "<nav class=\"ds-nav\"><button aria-current=\"page\">Planning</button><button>Équipe</button><button>Préparation de paie</button></nav>",
+      "css": ".ds-nav{display:grid;gap:2px;width:210px;padding:10px;background:#f4f6f0}.ds-nav button{padding:10px 12px;border:0;border-radius:7px;text-align:left;background:transparent;color:#626f64;font:12px \"Geist Variable\",sans-serif;cursor:pointer}.ds-nav button[aria-current]{background:#123c2d;color:#fff;font-weight:550}.ds-nav button:hover:not([aria-current]){background:#edf1e7}.ds-nav button:focus-visible{outline:2px solid #54734b;outline-offset:2px}"
+    },
+    {
+      "name": "Badge de statut",
+      "kind": "chip",
+      "refersTo": "badge",
+      "description": "Texte et point coloré, sans dépendre uniquement de la teinte.",
+      "html": "<span class=\"ds-badge\"><i></i>Actif</span>",
+      "css": ".ds-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 7px;border:1px solid #dbe7d4;border-radius:5px;background:#eaf1e6;color:#4d6944;font:500 10px/1.4 \"Geist Variable\",sans-serif}.ds-badge i{width:5px;height:5px;background:currentColor;border-radius:50%}"
+    },
+    {
+      "name": "Service de nuit",
+      "kind": "card",
+      "refersTo": "service",
+      "description": "Une unité de planning déplaçable, également modifiable par clic.",
+      "html": "<button class=\"ds-service\"><strong>22:00 — 05:00</strong><span>DJ</span><small>7 h · Prévu</small></button>",
+      "css": ".ds-service{display:grid;gap:7px;text-align:left;padding:10px;min-width:148px;border:1px solid #e4def2;border-radius:7px;background:#eeebf7;color:#6a548b;font:11px \"Geist Variable\",sans-serif;cursor:pointer;transition:transform 150ms}.ds-service strong{font-weight:550;font-variant-numeric:tabular-nums}.ds-service small{font-size:10px}.ds-service:hover{transform:translateY(-1px);box-shadow:0 2px 4px #2f392010}.ds-service:focus-visible{outline:2px solid #54734b;outline-offset:3px}@media(prefers-reduced-motion:reduce){.ds-service{transition:none}.ds-service:hover{transform:none}}"
+    },
+    {
+      "name": "Sélecteur en verre",
+      "kind": "custom",
+      "refersTo": "segmented",
+      "description": "Capsule active vert forêt, bord optique et support translucide.",
+      "html": "<div class=\"ds-segmented\" role=\"group\" aria-label=\"Présentation\"><button aria-pressed=\"true\">Grille</button><button aria-pressed=\"false\">Liste</button></div>",
+      "css": ".ds-segmented{display:inline-flex;padding:3px;border-radius:9px;border:1px solid #ffffffed;background:linear-gradient(135deg,#ffffffd9,#f4f6f0a6);box-shadow:inset 0 1px 0 #fff,inset 0 -1px 0 #e0e4d6a6,0 2px 4px #38442a0a,0 0 0 1px #3c492718;backdrop-filter:blur(16px) saturate(1.35)}.ds-segmented button{padding:6px 12px;border:0;border-radius:6px;font:12px \"Geist Variable\",sans-serif;color:#626f64;background:transparent;cursor:pointer}.ds-segmented button[aria-pressed=true]{color:#fff;background:#123c2d;box-shadow:0 1px 4px #3c49271a}.ds-segmented button:hover:not([aria-pressed=true]){background:#f6f8f4}.ds-segmented button:focus-visible{outline:2px solid #54734b;outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "L’équipe, en harmonie.",
+    "overview": "Skellow présente l’organisation d’une soirée comme un espace de travail calme : fond minéral, feuille blanche, navigation au vert forêt affirmé et informations rangées par personne. La précision des alignements et les couleurs de département rendent la semaine immédiatement lisible.\n\nLes commandes ont des bords optiques doux et une réponse courte. Le verre accompagne les sélecteurs et les notifications flottantes. La donnée reste sur une surface opaque pour conserver son contraste.",
+    "keyCharacteristics": [
+      "Une feuille blanche dans un cadre minéral.",
+      "Des couleurs pastel liées aux départements.",
+      "Une typographie compacte et des horaires alignés.",
+      "Un mouvement qui garde le lien entre les personnes, les dates et les actions."
+    ],
+    "rules": [
+      {
+        "name": "The Department Rule",
+        "body": "Conserver la même couleur pour un département sur toutes les vues ; utiliser son encre colorée sur son fond pastel.",
+        "section": "colors"
+      },
+      {
+        "name": "The Reading Order Rule",
+        "body": "Un titre, une courte explication, puis les commandes ; les labels de navigation n’ajoutent pas un niveau de titre.",
+        "section": "typography"
+      },
+      {
+        "name": "The Local Scroll Rule",
+        "body": "Un tableau ou une frise peut défiler dans son cadre ; la page entière ne doit pas déborder horizontalement.",
+        "section": "layout"
+      },
+      {
+        "name": "The Glass Rule",
+        "body": "Réserver le verre aux surfaces qui se superposent ou signalent une sélection ; garder les lignes de planning et les textes sur des fonds lisibles.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Motion Rule",
+        "body": "Pression à 150 ms, sélections à 260 ms, réorganisation des membres à 240–280 ms, changement de date à 220 ms. La frise révèle les durées de gauche à droite en 400 ms, avec au plus 120 ms de décalage ; les barres de la semaine prennent leur hauteur en 460 ms, avec au plus 150 ms de décalage. Les fenêtres et notifications sortent en 140 ms après une fermeture à la souris. Échap et les commandes clavier sont immédiats. Les préférences système et utilisateur arrêtent aussi les animations programmatiques en cours. Aucun mouvement permanent.",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "Réutiliser les composants de `src/components/ui.tsx` et les couleurs de département.",
+      "Donner un nom accessible à chaque commande à icône seule.",
+      "Vérifier les textes, états vides, erreurs et focus à 320 px comme sur bureau.",
+      "Afficher des comptes et états issus des données enregistrées."
+    ],
+    "donts": [
+      "Ne pas rendre l’information dépendante de la couleur seule.",
+      "Ne pas placer les données de planning sur une surface transparente à contraste variable.",
+      "Ne pas animer en boucle les listes ou les commandes répétées.",
+      "Ne pas présenter une estimation de paie comme un bulletin certifié."
+    ]
+  }
+}

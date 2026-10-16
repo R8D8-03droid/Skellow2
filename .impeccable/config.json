@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "geist",
+        "createdAt": "2026-10-16T03:55:06.652Z",
+        "reason": "Agent decision within the aesthetic freedom delegated by the user: Geist is the locally hosted interface typeface committed in .impeccable/skellow-surface.md and DESIGN.md. Its compact letterforms and tabular numerals support the dense staffing tables and the supplied dashboard references. Reviewed explicitly in .context/design-audit.md; not a user-confirmed font choice."
+      }
+    ]
+  }
+}

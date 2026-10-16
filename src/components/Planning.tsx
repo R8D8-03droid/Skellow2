@@ -1,552 +1,1312 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Employee, Shift } from '../types';
-import { format, startOfWeek, addDays, addWeeks, subWeeks, isToday } from 'date-fns';
-import { fr } from 'date-fns/locale';
-
-interface PlanningProps {
+import {
+  CSSProperties,
+  FormEvent,
+  ReactNode,
+  useEffect,
+  useState,
+  useRef,
+} from "react";
+import {
+  addDays,
+  addWeeks,
+  format,
+  isToday,
+  startOfWeek,
+  getISOWeek,
+} from "date-fns";
+import { fr } from "date-fns/locale";
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  PointerSensor,
+  pointerWithin,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  ArrowLeft,
+  ArrowRight,
+  CalendarDays,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  Copy,
+  Download,
+  LayoutList,
+  Moon,
+  Plus,
+  Trash2,
+  Users,
+  X,
+} from "lucide-react";
+import { Employee, Shift } from "../types";
+import type { ViewIntent } from "../App";
+import { useContentTransition, useTimelineReveal } from "../motion";
+import { generateId } from "../data";
+import { useAsyncAction } from "../backend/useAsyncAction";
+import { errorMessage } from "../backend/contracts";
+import {
+  Avatar,
+  Badge,
+  Button,
+  EmptyState,
+  IconButton,
+  Modal,
+  PageHeader,
+  SearchInput,
+  Segmented,
+  SelectionGroup,
+  csvCell,
+  downloadText,
+  isAbsent,
+  minutes,
+  number,
+  overlaps,
+  personName,
+  shiftHours,
+  toneFor,
+  workedHours,
+} from "./ui";
+interface Props {
   employees: Employee[];
   shifts: Shift[];
   currentUser: Employee;
-  onUpdateShifts: (shifts: Shift[]) => void;
+  onSaveShifts: (shifts: Shift[]) => Promise<void>;
+  onDeleteShift: (shift: Shift) => Promise<void>;
+  notify: (message: string, tone?: "success" | "error") => void;
+  intent: ViewIntent;
 }
-
-const HOUR_HEIGHT = 64;
-const START_HOUR = 18; // 18:00
-const END_HOUR = 7;   // 07:00 next day (13 hours total)
-const TOTAL_HOURS = 13;
-
-const SHIFT_COLORS: Record<string, { bg: string; color: string; border: string }> = {
-  'DJ/Animation': { bg: 'var(--violet-bg)', color: 'var(--violet)', border: 'var(--violet-border)' },
-  'Bar': { bg: 'var(--yellow-bg)', color: 'var(--yellow)', border: 'var(--yellow-border)' },
-  'Sécurité': { bg: 'var(--peach-bg)', color: 'var(--peach)', border: 'var(--peach-border)' },
-  'Accueil/Caisse': { bg: 'var(--green-bg)', color: 'var(--green)', border: 'var(--green-border)' },
-  'Direction': { bg: 'var(--blue-bg)', color: 'var(--blue)', border: 'var(--blue-border)' },
-  'Vestiaire': { bg: 'var(--yellow-bg)', color: 'var(--yellow)', border: 'var(--yellow-border)' },
-  'Ménage/Entretien': { bg: 'var(--peach-bg)', color: 'var(--peach)', border: 'var(--peach-border)' },
-};
-
-function getShiftColor(department: string) {
-  return SHIFT_COLORS[department] || { bg: 'var(--violet-bg)', color: 'var(--violet)', border: 'var(--violet-border)' };
-}
-
-function timeToOffset(time: string): number {
-  const [h, m] = time.split(':').map(Number);
-  let hourOffset = h - START_HOUR;
-  if (hourOffset < 0) hourOffset += 24;
-  return (hourOffset + m / 60) * HOUR_HEIGHT;
-}
-
-function shiftDuration(start: string, end: string): number {
-  const startOffset = timeToOffset(start);
-  const endOffset = timeToOffset(end);
-  if (endOffset <= startOffset) return (TOTAL_HOURS * HOUR_HEIGHT) - startOffset + endOffset;
-  return endOffset - startOffset;
-}
-
-export default function Planning({ employees, shifts, currentUser, onUpdateShifts }: PlanningProps) {
-  const isAdmin = currentUser.role === 'admin';
-  const [currentWeekStart, setCurrentWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [editingShift, setEditingShift] = useState<Shift | null>(null);
-  const [selectedDept, setSelectedDept] = useState<string>('all');
-  const [now, setNow] = useState(new Date());
-
-  // Live clock
+export default function Planning({
+  employees,
+  shifts,
+  currentUser,
+  onSaveShifts,
+  onDeleteShift,
+  notify,
+  intent,
+}: Props) {
+  const isAdmin = currentUser.role === "admin";
+  const [week, setWeek] = useState(
+    startOfWeek(new Date(), { weekStartsOn: 1 }),
+  );
+  const [view, setView] = useState<"team" | "agenda">("team");
+  const [query, setQuery] = useState("");
+  const [department, setDepartment] = useState("all");
+  const [selectedDay, setSelectedDay] = useState(
+    format(new Date(), "yyyy-MM-dd"),
+  );
+  const scheduleRef = useContentTransition<HTMLDivElement>(
+    format(week, "yyyy-MM-dd"),
+  );
+  const [editing, setEditing] = useState<Partial<Shift> | null>(null);
+  const [copyWeek, setCopyWeek] = useState(false);
+  const copying = useAsyncAction();
+  const copyDraft = useRef<Shift[] | null>(null);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+  );
   useEffect(() => {
-    const interval = setInterval(() => setNow(new Date()), 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const days = Array.from({ length: 7 }).map((_, i) => addDays(currentWeekStart, i));
-  const hours = Array.from({ length: TOTAL_HOURS }).map((_, i) => {
-    const h = (START_HOUR + i) % 24;
-    return `${String(h).padStart(2, '0')}:00`;
-  });
-
-  const activeEmployees = employees.filter(e => e.active);
-  const departments = [...new Set(activeEmployees.map(e => e.department))];
-
-  // Group shifts by day with employee info
-  const dayShifts = useMemo(() => {
-    return days.map(day => {
-      const dateStr = format(day, 'yyyy-MM-dd');
-      const dayS = shifts.filter(s => s.date === dateStr);
-
-      // Filter by department if needed
-      if (selectedDept !== 'all') {
-        return dayS.filter(s => {
-          const emp = employees.find(e => e.id === s.employeeId);
-          return emp?.department === selectedDept;
-        });
-      }
-      return dayS;
-    });
-  }, [days, shifts, employees, selectedDept]);
-
-  // Current time indicator position
-  const nowHour = now.getHours();
-  const nowMin = now.getMinutes();
-  let timeOffset = (nowHour - START_HOUR) * HOUR_HEIGHT + (nowMin / 60) * HOUR_HEIGHT;
-  if (timeOffset < 0) timeOffset += 24 * HOUR_HEIGHT;
-  const showTimeIndicator = timeOffset >= 0 && timeOffset <= TOTAL_HOURS * HOUR_HEIGHT;
-
-  const todayStr = format(now, 'yyyy-MM-dd');
-  const todayDayIndex = days.findIndex(d => format(d, 'yyyy-MM-dd') === todayStr);
-
-  const handleShiftClick = (shift: Shift) => {
-    if (!isAdmin) return;
-    setEditingShift(shift);
-    setShowAddModal(true);
-  };
-
-  const handleSaveShift = (shift: Shift) => {
-    const existing = shifts.findIndex(s => s.id === shift.id);
-    if (existing >= 0) {
-      const updated = [...shifts];
-      updated[existing] = shift;
-      onUpdateShifts(updated);
-    } else {
-      onUpdateShifts([...shifts, shift]);
+    if (intent.action === "create" && isAdmin) setEditing({});
+    if (intent.date) {
+      setWeek(
+        startOfWeek(new Date(`${intent.date}T12:00:00`), { weekStartsOn: 1 }),
+      );
+      setSelectedDay(intent.date);
     }
-    setShowAddModal(false);
-    setEditingShift(null);
+    if (intent.shiftId) {
+      const target = shifts.find(
+        (s) =>
+          s.id === intent.shiftId &&
+          (isAdmin || s.employeeId === currentUser.id),
+      );
+      if (target) setEditing(target);
+    }
+  }, [intent, isAdmin]);
+  const days = Array.from({ length: 7 }, (_, i) => addDays(week, i));
+  const dates = days.map((day) => format(day, "yyyy-MM-dd"));
+  const scopedEmployees = employees.filter(
+    (e) => isAdmin || e.id === currentUser.id,
+  );
+  const visibleEmployees = scopedEmployees.filter(
+    (e) =>
+      (e.active ||
+        shifts.some((s) => s.employeeId === e.id && dates.includes(s.date))) &&
+      (department === "all" || e.department === department) &&
+      `${personName(e)} ${e.position}`
+        .toLocaleLowerCase("fr")
+        .includes(query.toLocaleLowerCase("fr")),
+  );
+  const weekShifts = shifts.filter(
+    (s) =>
+      dates.includes(s.date) &&
+      visibleEmployees.some((e) => e.id === s.employeeId),
+  );
+  const nightShifts = weekShifts.filter(
+    (s) => minutes(s.endTime) < minutes(s.startTime),
+  ).length;
+  const activePeople = new Set(
+    weekShifts.filter((s) => !isAbsent(s)).map((s) => s.employeeId),
+  ).size;
+  const navigateWeek = (next: Date) => {
+    setWeek(next);
+    setSelectedDay(
+      format(
+        addDays(next, Math.max(0, dates.indexOf(selectedDay))),
+        "yyyy-MM-dd",
+      ),
+    );
   };
-
-  const handleDeleteShift = (shiftId: string) => {
-    onUpdateShifts(shifts.filter(s => s.id !== shiftId));
-    setShowAddModal(false);
-    setEditingShift(null);
+  const today = () => {
+    setWeek(startOfWeek(new Date(), { weekStartsOn: 1 }));
+    setSelectedDay(format(new Date(), "yyyy-MM-dd"));
   };
-
+  const exportPlanning = () => {
+    const data = [
+      [
+        "Date",
+        "Employé",
+        "Département",
+        "Début",
+        "Fin",
+        "Heures",
+        "Poste",
+        "Statut",
+      ],
+      ...[...weekShifts]
+        .sort((a, b) =>
+          `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`),
+        )
+        .map((s) => {
+          const e = employees.find((e) => e.id === s.employeeId)!;
+          return [
+            s.date,
+            personName(e),
+            e.department,
+            s.startTime,
+            s.endTime,
+            shiftHours(s),
+            s.role,
+            s.status || "scheduled",
+          ];
+        }),
+    ];
+    downloadText(
+      `planning-${dates[0]}.csv`,
+      data.map((row) => row.map(csvCell).join(";")).join("\r\n"),
+    );
+    notify("Le planning a été exporté.");
+  };
+  const handleDragEnd = async (event: DragEndEvent) => {
+    setDraggedId(null);
+    if (!event.over || !isAdmin) return;
+    const shift = shifts.find((s) => s.id === event.active.id);
+    const target = event.over.data.current;
+    if (
+      !shift ||
+      !target ||
+      (shift.date === target.date && shift.employeeId === target.employeeId)
+    )
+      return;
+    const employee = employees.find((e) => e.id === target.employeeId);
+    if (!employee?.active) {
+      notify(
+        "Ce membre est inactif. Réactivez sa fiche pour lui attribuer un service.",
+        "error",
+      );
+      return;
+    }
+    const updated = {
+      ...shift,
+      date: target.date as string,
+      employeeId: employee.id,
+      role: employee.id === shift.employeeId ? shift.role : employee.position,
+    };
+    if (overlaps(updated, shifts)) {
+      notify(
+        "Déplacement impossible : ce membre a déjà un service à cet horaire.",
+        "error",
+      );
+      return;
+    }
+    try {
+      await onSaveShifts([updated]);
+      notify("Service déplacé et enregistré.");
+    } catch (cause) { notify(errorMessage(cause), "error"); }
+  };
+  const duplicateWeek = async () => {
+    const copies: Shift[] = [];
+    const next = [...shifts];
+    let count = 0;
+    weekShifts.forEach((s) => {
+      const copy = {
+        ...s,
+        id: generateId(),
+        revision: undefined,
+        date: format(addDays(new Date(`${s.date}T12:00:00`), 7), "yyyy-MM-dd"),
+        status: "scheduled" as const,
+      };
+      if (
+        employees.find((e) => e.id === copy.employeeId)?.active &&
+        !overlaps(copy, next) &&
+        !next.some(
+          (t) =>
+            t.employeeId === copy.employeeId &&
+            t.date === copy.date &&
+            t.startTime === copy.startTime &&
+            t.endTime === copy.endTime,
+        )
+      ) {
+        next.push(copy);
+        copies.push(copy);
+        count++;
+      }
+    });
+    copyDraft.current ??= copies;
+    count = copyDraft.current.length;
+    if (count) await onSaveShifts(copyDraft.current);
+    copyDraft.current = null;
+    setCopyWeek(false);
+    notify(
+      `${count} service${count > 1 ? "s" : ""} copié${count > 1 ? "s" : ""} sur la semaine suivante${count < weekShifts.length ? " ; doublons et conflits ignorés" : ""}.`,
+    );
+  };
   return (
-    <div style={{ padding: '24px 28px', animation: 'contentIn 500ms var(--ease-out) 250ms both' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-          {/* Week nav */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button
-              onClick={() => setCurrentWeekStart(subWeeks(currentWeekStart, 1))}
-              style={{
-                width: 32, height: 32, borderRadius: 8, border: '1px solid var(--border-2)',
-                background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: '#666',
-              }}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><polyline points="15 18 9 12 15 6"/></svg>
-            </button>
-            <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.03em' }}>
-              {format(currentWeekStart, 'dd', { locale: fr })}–{format(addDays(currentWeekStart, 6), 'dd MMMM yyyy', { locale: fr })}
-            </h1>
-            <button
-              onClick={() => setCurrentWeekStart(addWeeks(currentWeekStart, 1))}
-              style={{
-                width: 32, height: 32, borderRadius: 8, border: '1px solid var(--border-2)',
-                background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: '#666',
-              }}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><polyline points="9 18 15 12 9 6"/></svg>
-            </button>
-          </div>
-
-          {/* Filter pills */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Pill active={selectedDept === 'all'} onClick={() => setSelectedDept('all')} checkmark>
-              Tous
-            </Pill>
-            {departments.map(dept => (
-              <Pill key={dept} active={selectedDept === dept} onClick={() => setSelectedDept(dept)}>
-                {dept.split('/')[0]}
-              </Pill>
-            ))}
-            <Pill active={false} onClick={() => setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}>
-              Cette sem. <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="10" height="10"><polyline points="6 9 12 15 18 9"/></svg>
-            </Pill>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button style={{
-            padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-            border: '1px solid var(--border-2)', background: 'white', color: '#444',
-            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-          }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-            Filtrer
+    <div className="page planning-page">
+      <PageHeader
+        title={isAdmin ? "Le planning, en harmonie." : "Votre planning."}
+        description={
+          isAdmin
+            ? "Les bonnes personnes, au bon moment. Organisez la semaine en un regard."
+            : "Vos prochains services et votre semaine, au même endroit."
+        }
+      >
+        <Button onClick={exportPlanning} disabled={!weekShifts.length}>
+          <Download size={16} />
+          Exporter
+        </Button>
+        {isAdmin && (
+          <Button
+            variant="primary"
+            onClick={() => setEditing({ date: selectedDay })}
+            disabled={!employees.some((e) => e.active)}
+          >
+            <Plus size={17} />
+            Ajouter un service
+          </Button>
+        )}
+      </PageHeader>
+      <div className="page-tabs">
+        <SelectionGroup
+          className="tab-buttons"
+          value={view}
+          label="Vue du planning"
+        >
+          <button
+            className={view === "team" ? "active" : ""}
+            aria-pressed={view === "team"}
+            onClick={() => setView("team")}
+          >
+            <Users size={16} />
+            Planning d’équipe
           </button>
-          {isAdmin && (
-            <button
-              onClick={() => { setEditingShift(null); setShowAddModal(true); }}
-              style={{
-                padding: '7px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                border: 'none', background: '#1a1a1a', color: 'white',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-              }}
+          <button
+            className={view === "agenda" ? "active" : ""}
+            aria-pressed={view === "agenda"}
+            onClick={() => setView("agenda")}
+          >
+            <CalendarDays size={16} />
+            Agenda horaire
+          </button>
+        </SelectionGroup>
+        <span className="small muted">
+          Semaine {getISOWeek(week)}
+          <span className="separator-dot">·</span>
+          {weekShifts.length} service{weekShifts.length > 1 ? "s" : ""}
+        </span>
+      </div>
+      <div className="planning-toolbar">
+        <div className="date-navigation">
+          <div className="date-arrows glass">
+            <IconButton
+              label="Semaine précédente"
+              onClick={() => navigateWeek(addWeeks(week, -1))}
             >
-              + Ajouter shift
-            </button>
+              <ChevronLeft size={16} />
+            </IconButton>
+            <IconButton
+              label="Semaine suivante"
+              onClick={() => navigateWeek(addWeeks(week, 1))}
+            >
+              <ChevronRight size={16} />
+            </IconButton>
+          </div>
+          <h2>
+            {format(week, "d", { locale: fr })}
+            {format(week, "MM") !== format(days[6], "MM") &&
+              ` ${format(week, "MMM", { locale: fr })}`}{" "}
+            – {format(days[6], "d MMMM yyyy", { locale: fr })}
+          </h2>
+          <Button className="today-button" onClick={today}>
+            Aujourd’hui
+          </Button>
+        </div>
+        <div className="filter-controls">
+          <SearchInput
+            value={query}
+            onChange={setQuery}
+            placeholder="Rechercher un membre…"
+            label="Rechercher un membre dans le planning"
+          />
+          {isAdmin && (
+            <select
+              aria-label="Filtrer le planning par département"
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+            >
+              <option value="all">Tous les départements</option>
+              {[...new Set(scopedEmployees.map((e) => e.department))].map(
+                (d) => (
+                  <option key={d}>{d}</option>
+                ),
+              )}
+            </select>
           )}
         </div>
       </div>
-
-      {/* Schedule grid */}
-      <div style={{
-        display: 'flex', overflow: 'hidden',
-        border: '1px solid var(--border)', borderRadius: 16,
-        background: '#fff',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.02), 0 0 0 1px rgba(255,255,255,0.6) inset',
-      }}>
-        {/* Time column */}
-        <div style={{ width: 56, flexShrink: 0, paddingTop: 40 }}>
-          {hours.map(h => (
-            <div key={h} style={{
-              height: HOUR_HEIGHT, display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end',
-              paddingRight: 12, fontSize: 11, color: 'var(--text-dim)', fontWeight: 500,
-              fontVariantNumeric: 'tabular-nums',
-            }}>
-              {h}
-            </div>
-          ))}
-        </div>
-
-        {/* Day columns */}
-        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: `repeat(7, 1fr)`, overflowX: 'auto' }}>
-          {days.map((day, dayIndex) => {
-            const dateStr = format(day, 'yyyy-MM-dd');
-            const isCurrentDay = isToday(day);
-            const shiftsForDay = dayShifts[dayIndex] || [];
-
-            return (
-              <div key={dateStr} style={{ borderLeft: dayIndex > 0 ? '1px solid rgba(0,0,0,0.05)' : 'none', minWidth: 0 }}>
-                {/* Day header */}
-                <div style={{
-                  height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 12, fontWeight: isCurrentDay ? 600 : 500,
-                  color: isCurrentDay ? 'white' : '#999',
-                  background: isCurrentDay ? '#1a1a1a' : 'transparent',
-                  borderBottom: '1px solid rgba(0,0,0,0.06)',
-                  gap: 4,
-                  transition: 'background 200ms ease, color 200ms ease',
-                }}>
-                  {format(day, 'd')} – {format(day, 'EEE', { locale: fr })}
-                </div>
-
-                {/* Day body */}
-                <div style={{ position: 'relative' }}>
-                  {/* Hour slots */}
-                  {hours.map(h => (
-                    <div key={h} style={{
-                      height: HOUR_HEIGHT,
-                      borderBottom: '1px solid rgba(0,0,0,0.035)',
-                      cursor: isAdmin ? 'pointer' : 'default',
-                    }}
-                    onClick={() => {
-                      if (!isAdmin) return;
-                      const employee = employees.find(e => e.active);
-                      if (!employee) return;
-                      setEditingShift({
-                        id: '',
-                        employeeId: employee.id,
-                        date: dateStr,
-                        startTime: h,
-                        endTime: `${String((parseInt(h) + 8) % 24).padStart(2, '0')}:00`,
-                        role: employee.position || '',
-                      });
-                      setShowAddModal(true);
-                    }}
-                    />
-                  ))}
-
-                  {/* Shift blocks */}
-                  {shiftsForDay.map((shift, si) => {
-                    const emp = employees.find(e => e.id === shift.employeeId);
-                    if (!emp) return null;
-                    const colors = getShiftColor(emp.department);
-                    const top = timeToOffset(shift.startTime);
-                    const height = shiftDuration(shift.startTime, shift.endTime);
-
-                    // Simple overlap: count shifts that overlap and offset
-                    const overlapping = shiftsForDay.filter((s, idx) => {
-                      if (idx >= si) return false;
-                      const sTop = timeToOffset(s.startTime);
-                      const sH = shiftDuration(s.startTime, s.endTime);
-                      return top < sTop + sH && top + height > sTop;
-                    });
-                    const overlapIndex = overlapping.length;
-                    const totalOverlaps = shiftsForDay.filter(s => {
-                      if (s.id === shift.id) return false;
-                      const sTop = timeToOffset(s.startTime);
-                      const sH = shiftDuration(s.startTime, s.endTime);
-                      return top < sTop + sH && top + height > sTop;
-                    }).length + 1;
-
-                    const width = totalOverlaps > 1 ? `${100 / totalOverlaps}%` : 'calc(100% - 8px)';
-                    const left = totalOverlaps > 1 ? `${(overlapIndex / totalOverlaps) * 100}%` : '4px';
-
-                    const isAbsent = shift.status === 'absence_justified' || shift.status === 'absence_unjustified';
-
-                    return (
-                      <div
-                        key={shift.id}
-                        onClick={(e) => { e.stopPropagation(); handleShiftClick(shift); }}
-                        style={{
-                          position: 'absolute',
-                          top, height: Math.max(height, 32),
-                          left, width,
-                          paddingLeft: totalOverlaps > 1 ? 2 : 0,
-                          paddingRight: totalOverlaps > 1 ? 2 : 0,
-                          animation: `shiftIn 400ms var(--ease-out-expo) ${350 + si * 50}ms both`,
-                        }}
+      <div className="planning-summary">
+        <span>
+          <span className="summary-icon">
+            <Users size={15} />
+          </span>
+          <strong>{activePeople}</strong>{" "}
+          {activePeople > 1 ? "membres planifiés" : "membre planifié"}
+        </span>
+        <span>
+          <Clock3 size={15} />
+          <strong>{number(workedHours(weekShifts))} h</strong> sur la semaine
+        </span>
+        <span>
+          <Moon size={15} />
+          <strong>{nightShifts}</strong> service{nightShifts > 1 ? "s" : ""} de
+          nuit
+        </span>
+        {isAdmin && (
+          <button
+            onClick={() => { copyDraft.current = null; copying.setError(""); setCopyWeek(true); }}
+            disabled={!weekShifts.length}
+          >
+            <Copy size={14} />
+            Dupliquer la semaine
+          </button>
+        )}
+      </div>
+      {view === "team" ? (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={pointerWithin}
+          onDragStart={(event) => setDraggedId(String(event.active.id))}
+          onDragCancel={() => setDraggedId(null)}
+          onDragEnd={handleDragEnd}
+        >
+          <MobileDayPlanning
+            days={days}
+            selectedDay={selectedDay}
+            onDay={setSelectedDay}
+            employees={visibleEmployees}
+            shifts={weekShifts}
+            canEdit={isAdmin}
+            onEdit={setEditing}
+          />
+          <div className="schedule-frame">
+            <div
+              ref={scheduleRef}
+              className="schedule-scroll"
+              tabIndex={0}
+              role="region"
+              aria-label="Planning hebdomadaire défilant"
+            >
+              <table className="schedule-table">
+                <caption className="sr-only">
+                  Planning de la semaine du{" "}
+                  {format(week, "d MMMM yyyy", { locale: fr })}
+                </caption>
+                <thead>
+                  <tr>
+                    <th className="person-column">
+                      <span>Membre de l’équipe</span>
+                      <Badge>{visibleEmployees.length}</Badge>
+                    </th>
+                    {days.map((day) => (
+                      <th
+                        key={day.toISOString()}
+                        className={isToday(day) ? "today-column" : ""}
                       >
-                        <div
-                          style={{
-                            height: '100%',
-                            borderRadius: 10, padding: '8px 10px',
-                            fontSize: 11, overflow: 'hidden',
-                            cursor: 'pointer',
-                            background: colors.bg, color: colors.color,
-                            border: `1px solid ${colors.border}`,
-                            backdropFilter: 'blur(8px)',
-                            WebkitBackdropFilter: 'blur(8px)',
-                            opacity: isAbsent ? 0.5 : 1,
-                            transition: 'transform 200ms var(--ease-out), box-shadow 200ms var(--ease-out)',
-                          }}
-                          onMouseEnter={e => {
-                            e.currentTarget.style.transform = 'translateY(-2px)';
-                            e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.08)';
-                          }}
-                          onMouseLeave={e => {
-                            e.currentTarget.style.transform = 'none';
-                            e.currentTarget.style.boxShadow = 'none';
-                          }}
+                        <span className="day-name">
+                          {format(day, "EEE", { locale: fr }).replace(".", "")}
+                        </span>
+                        <span
+                          className={`day-number ${isToday(day) ? "today-number" : ""}`}
                         >
-                          <div style={{ fontWeight: 600, marginBottom: 2 }}>
-                            {emp.firstName} {emp.lastName.charAt(0)}.
-                          </div>
-                          <div style={{ opacity: 0.65, fontSize: 10 }}>
-                            {shift.startTime} – {shift.endTime}
-                          </div>
-                          {shift.status === 'present' && (
-                            <div style={{
-                              display: 'inline-flex', alignItems: 'center', gap: 3,
-                              fontSize: 10, fontWeight: 600, marginTop: 4,
-                            }}>
-                              <svg viewBox="0 0 24 24" fill="currentColor" width="11" height="11">
-                                <circle cx="12" cy="12" r="10"/>
-                                <polyline points="9 12 11 14 15 10" fill="none" stroke="white" strokeWidth="2.5"/>
-                              </svg>
-                              Confirmee
+                          {format(day, "dd")}
+                        </span>
+                      </th>
+                    ))}
+                    <th className="total-column">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleEmployees.map((employee) => {
+                    const own = weekShifts.filter(
+                      (s) => s.employeeId === employee.id,
+                    );
+                    return (
+                      <tr key={employee.id}>
+                        <th scope="row">
+                          <div className="schedule-person">
+                            <Avatar employee={employee} size="sm" />
+                            <div>
+                              <strong>{personName(employee)}</strong>
+                              <span>{employee.position}</span>
                             </div>
-                          )}
-                          {isAbsent && (
-                            <div style={{ fontSize: 10, fontWeight: 600, marginTop: 4, opacity: 0.8 }}>
-                              {shift.status === 'absence_justified' ? 'Abs. justifiee' : 'Abs. injustifiee'}
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                          </div>
+                        </th>
+                        {days.map((day) => {
+                          const date = format(day, "yyyy-MM-dd");
+                          const daily = own
+                            .filter((s) => s.date === date)
+                            .sort((a, b) =>
+                              a.startTime.localeCompare(b.startTime),
+                            );
+                          return (
+                            <ScheduleCell
+                              key={date}
+                              employee={employee}
+                              date={date}
+                              today={isToday(day)}
+                              canEdit={isAdmin && employee.active}
+                              onAdd={() =>
+                                setEditing({
+                                  employeeId: employee.id,
+                                  date,
+                                  role: employee.position,
+                                })
+                              }
+                            >
+                              {daily.map((shift) => (
+                                <DraggableShift
+                                  key={shift.id}
+                                  shift={shift}
+                                  employee={employee}
+                                  canEdit={isAdmin}
+                                  onClick={() => setEditing(shift)}
+                                />
+                              ))}
+                            </ScheduleCell>
+                          );
+                        })}
+                        <td className="total-column">
+                          <strong>
+                            {number(workedHours(own))}
+                            <small> h</small>
+                          </strong>
+                          <span className="small muted">
+                            {number((employee.monthlyHours * 12) / 52)} h / sem.
+                          </span>
+                        </td>
+                      </tr>
                     );
                   })}
-
-                  {/* Time indicator (only on today's column) */}
-                  {isCurrentDay && showTimeIndicator && (
-                    <div style={{
-                      position: 'absolute', top: timeOffset, left: -4, right: 0,
-                      display: 'flex', alignItems: 'center', zIndex: 10,
-                      animation: 'fadeIn 500ms var(--ease-out) 600ms both',
-                    }}>
-                      <span style={{
-                        background: '#1a1a1a', color: 'white',
-                        fontSize: 10, fontWeight: 700,
-                        padding: '3px 8px', borderRadius: 6,
-                        whiteSpace: 'nowrap', flexShrink: 0,
-                        position: 'relative',
-                      }}>
-                        <span style={{
-                          position: 'absolute', left: -3, top: '50%', transform: 'translateY(-50%)',
-                          width: 7, height: 7, borderRadius: '50%', background: '#1a1a1a',
-                          animation: 'timeDotPulse 2s ease-in-out infinite',
-                        }} />
-                        {String(nowHour).padStart(2, '0')}:{String(nowMin).padStart(2, '0')}
-                      </span>
-                      <span style={{ flex: 1, height: 2, background: '#1a1a1a' }} />
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <th>Couverture par jour</th>
+                    {dates.map((date) => (
+                      <td key={date}>
+                        <span
+                          className={`coverage-count ${weekShifts.some((s) => s.date === date) ? "has-coverage" : ""}`}
+                        >
+                          {
+                            new Set(
+                              weekShifts
+                                .filter((s) => s.date === date && !isAbsent(s))
+                                .map((s) => s.employeeId),
+                            ).size
+                          }
+                        </span>
+                        <span className="coverage-hours">
+                          {number(
+                            workedHours(
+                              weekShifts.filter((s) => s.date === date),
+                            ),
+                          )}{" "}
+                          h
+                        </span>
+                      </td>
+                    ))}
+                    <td className="total-column">
+                      <strong>{number(workedHours(weekShifts))} h</strong>
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            {!visibleEmployees.length && (
+              <EmptyState
+                icon={<Users />}
+                title="Aucun membre trouvé"
+                description="Modifiez votre recherche ou votre département."
+                action={
+                  <Button
+                    onClick={() => {
+                      setQuery("");
+                      setDepartment("all");
+                    }}
+                  >
+                    Réinitialiser les filtres
+                  </Button>
+                }
+              />
+            )}
+            <div className="schedule-footer">
+              <span>
+                <span className="status-dot" />
+                {isAdmin ? "Le planning de votre équipe" : "Vos services planifiés"}
+              </span>
+              <span>
+                {isAdmin
+                  ? "Glissez un service pour le déplacer"
+                  : "Cliquez sur un service pour le consulter"}
+              </span>
+            </div>
+          </div>
+          <DragOverlay>
+            {draggedId &&
+              (() => {
+                const shift = shifts.find((s) => s.id === draggedId);
+                const employee = employees.find(
+                  (e) => e.id === shift?.employeeId,
+                );
+                return shift && employee ? (
+                  <div
+                    className={`shift-card drag-preview tone-${toneFor(employee.department)}`}
+                  >
+                    <strong>
+                      {shift.startTime} – {shift.endTime}
+                    </strong>
+                    <span>{personName(employee)}</span>
+                  </div>
+                ) : null;
+              })()}
+          </DragOverlay>
+        </DndContext>
+      ) : (
+        <div className="agenda-view">
+          <SelectionGroup
+            className="day-selector"
+            value={selectedDay}
+            label="Jour de l’agenda"
+          >
+            {days.map((day) => {
+              const date = format(day, "yyyy-MM-dd");
+              return (
+                <button
+                  key={date}
+                  className={selectedDay === date ? "active" : ""}
+                  aria-pressed={selectedDay === date}
+                  onClick={() => setSelectedDay(date)}
+                >
+                  <span>{format(day, "EEE", { locale: fr })}</span>
+                  <strong>{format(day, "d")}</strong>
+                  <small>
+                    {weekShifts.filter((s) => s.date === date).length} service
+                    {weekShifts.filter((s) => s.date === date).length > 1
+                      ? "s"
+                      : ""}
+                  </small>
+                </button>
+              );
+            })}
+          </SelectionGroup>
+          <DayTimeline
+            date={selectedDay}
+            employees={visibleEmployees}
+            shifts={weekShifts}
+            onShift={(shift) => setEditing(shift)}
+          />
         </div>
+      )}
+      <div className="planning-bottom">
+        <div className="department-legend">
+          <span>Départements</span>
+          {[...new Set(visibleEmployees.map((e) => e.department))].map(
+            (dept) => (
+              <span key={dept}>
+                <i className={`department-dot tone-${toneFor(dept)}`} />
+                {dept.split("/")[0]}
+              </span>
+            ),
+          )}
+        </div>
+        <span className="small muted">
+          Les horaires de fin peuvent être le lendemain.
+        </span>
       </div>
-
-      {/* Add/Edit Modal */}
-      {showAddModal && (
-        <ShiftModal
-          shift={editingShift}
-          employees={activeEmployees}
-          onSave={handleSaveShift}
-          onDelete={editingShift?.id ? () => handleDeleteShift(editingShift.id) : undefined}
-          onClose={() => { setShowAddModal(false); setEditingShift(null); }}
+      <div className="planning-note">
+        <span className="note-icon">
+          <CalendarDays size={20} />
+        </span>
+        <div>
+          <strong>La semaine prend forme.</strong>
+          <p>
+            {weekShifts.length
+              ? `${weekShifts.length} service${weekShifts.length > 1 ? "s" : ""} sur ${new Set(weekShifts.map((s) => s.date)).size} jour${new Set(weekShifts.map((s) => s.date)).size > 1 ? "s" : ""}. ${activePeople} membre${activePeople > 1 ? "s" : ""} au programme.`
+              : "Commencez par ajouter un service, puis construisez la semaine à votre rythme."}
+          </p>
+        </div>
+        {isAdmin && (
+          <Button
+            variant="ghost"
+            onClick={() => setEditing({ date: selectedDay })}
+            disabled={!employees.some((e) => e.active)}
+          >
+            Planifier un service
+            <ArrowRight size={15} />
+          </Button>
+        )}
+      </div>
+      {editing && (
+        <ShiftEditor
+          key={
+            editing.id ||
+            `${editing.employeeId || "new"}:${editing.date || "today"}`
+          }
+          shift={editing}
+          employees={employees}
+          shifts={shifts}
+          readOnly={!isAdmin}
+          onClose={() => setEditing(null)}
+          onSave={async (shift) => {
+            await onSaveShifts([shift]);
+            setEditing(null);
+            notify("Service enregistré.");
+          }}
+          onDelete={async (shift) => {
+            await onDeleteShift(shift);
+            setEditing(null);
+            notify("Service supprimé.");
+          }}
+          onDuplicate={(shift) =>
+            setEditing({
+              ...shift,
+              id: undefined,
+              revision: undefined,
+              date: format(
+                addDays(new Date(`${shift.date}T12:00:00`), 1),
+                "yyyy-MM-dd",
+              ),
+              status: "scheduled",
+            })
+          }
         />
       )}
-    </div>
-  );
-}
-
-// ── Pill component ──
-function Pill({ active, onClick, children, checkmark }: {
-  active: boolean; onClick: () => void; children: React.ReactNode; checkmark?: boolean;
-}) {
-  return (
-    <div
-      onClick={onClick}
-      style={{
-        padding: '6px 14px', borderRadius: 100,
-        fontSize: 12, fontWeight: 600, cursor: 'pointer',
-        border: `1px solid ${active ? '#1a1a1a' : 'rgba(0,0,0,0.1)'}`,
-        background: active ? '#1a1a1a' : 'white',
-        color: active ? 'white' : '#666',
-        display: 'flex', alignItems: 'center', gap: 4,
-        transition: 'border-color 150ms ease, color 150ms ease, background 150ms ease, transform 100ms var(--ease-out)',
-        userSelect: 'none',
-      }}
-      onMouseEnter={e => {
-        if (!active) {
-          e.currentTarget.style.borderColor = 'rgba(0,0,0,0.22)';
-          e.currentTarget.style.color = '#333';
-        }
-      }}
-      onMouseLeave={e => {
-        if (!active) {
-          e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)';
-          e.currentTarget.style.color = '#666';
-        }
-      }}
-    >
-      {checkmark && active && (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12">
-          <polyline points="20 6 9 17 4 12"/>
-        </svg>
+      {copyWeek && (
+        <Modal
+          title="Préparer la semaine suivante"
+          description={`Copier ${weekShifts.length} service${weekShifts.length > 1 ? "s" : ""} vers la semaine du ${format(addWeeks(week, 1), "d MMMM", { locale: fr })}.`}
+          onClose={() => { if (!copying.pending) setCopyWeek(false); }}
+        >
+          <div className="info-note">
+            <Copy size={18} />
+            <p>
+              Les horaires et les membres sont conservés. Les statuts repassent
+              à « Prévu ». Les doublons et les horaires en conflit sont ignorés.
+            </p>
+          </div>
+          {copying.error && <p className="form-error" role="alert">{copying.error}</p>}
+          <div className="dialog-footer">
+            <Button disabled={copying.pending} onClick={() => setCopyWeek(false)}>Annuler</Button>
+            <Button variant="primary" disabled={copying.pending} onClick={() => void copying.run(duplicateWeek)}>
+              <Copy size={16} />
+              {copying.pending ? "Copie en cours…" : "Copier les services"}
+            </Button>
+          </div>
+        </Modal>
       )}
-      {children}
     </div>
   );
 }
-
-// ── Shift Modal ──
-function ShiftModal({ shift, employees, onSave, onDelete, onClose }: {
-  shift: Shift | null;
+function MobileDayPlanning({
+  days,
+  selectedDay,
+  onDay,
+  employees,
+  shifts,
+  canEdit,
+  onEdit,
+}: {
+  days: Date[];
+  selectedDay: string;
+  onDay: (day: string) => void;
   employees: Employee[];
-  onSave: (shift: Shift) => void;
-  onDelete?: () => void;
-  onClose: () => void;
+  shifts: Shift[];
+  canEdit: boolean;
+  onEdit: (shift: Partial<Shift>) => void;
 }) {
-  const [employeeId, setEmployeeId] = useState(shift?.employeeId || employees[0]?.id || '');
-  const [date, setDate] = useState(shift?.date || format(new Date(), 'yyyy-MM-dd'));
-  const [startTime, setStartTime] = useState(shift?.startTime || '22:00');
-  const [endTime, setEndTime] = useState(shift?.endTime || '05:00');
-  const [role, setRole] = useState(shift?.role || '');
-  const [notes, setNotes] = useState(shift?.notes || '');
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSave({
-      id: shift?.id || `shift-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      employeeId, date, startTime, endTime, role, notes,
-      status: shift?.status,
-    });
-  };
-
-  const inputStyle = {
-    width: '100%', padding: '8px 12px', borderRadius: 8,
-    border: '1px solid var(--border-2)', fontSize: 13,
-    outline: 'none', transition: 'border-color 150ms ease',
-    background: 'white',
-  };
-
+  const rosterRef = useContentTransition<HTMLDivElement>(selectedDay);
+  const daily = shifts.filter((s) => s.date === selectedDay);
+  const ordered = [...employees].sort(
+    (a, b) =>
+      Number(daily.some((s) => s.employeeId === b.id)) -
+      Number(daily.some((s) => s.employeeId === a.id)),
+  );
   return (
-    <div
-      style={{
-        position: 'fixed', inset: 0, zIndex: 50,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(4px)',
-        animation: 'fadeIn 200ms ease both',
-      }}
-      onClick={onClose}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          background: 'white', borderRadius: 16, width: '100%', maxWidth: 420,
-          padding: 28, boxShadow: '0 24px 80px rgba(0,0,0,0.15)',
-          animation: 'fadeInUp 300ms var(--ease-out) both',
-        }}
+    <div className="mobile-schedule">
+      <SelectionGroup
+        className="day-selector"
+        value={selectedDay}
+        label="Jour du planning"
       >
-        <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 20, letterSpacing: '-0.02em' }}>
-          {shift?.id ? 'Modifier le shift' : 'Nouveau shift'}
+        {days.map((day) => {
+          const date = format(day, "yyyy-MM-dd");
+          return (
+            <button
+              key={date}
+              aria-pressed={date === selectedDay}
+              className={date === selectedDay ? "active" : ""}
+              onClick={() => onDay(date)}
+            >
+              <span>{format(day, "EEE", { locale: fr }).replace(".", "")}</span>
+              <strong>{format(day, "d")}</strong>
+              <small>{shifts.filter((s) => s.date === date).length}</small>
+            </button>
+          );
+        })}
+      </SelectionGroup>
+      <div className="mobile-day-heading">
+        <h2>
+          {format(new Date(`${selectedDay}T12:00:00`), "EEEE d MMMM", {
+            locale: fr,
+          })}
         </h2>
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4, display: 'block' }}>Employe</label>
-            <select value={employeeId} onChange={e => setEmployeeId(e.target.value)} style={inputStyle}>
-              {employees.map(emp => (
-                <option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</option>
+        <Badge>
+          {daily.length} service{daily.length > 1 ? "s" : ""}
+        </Badge>
+      </div>
+      <div className="mobile-roster" ref={rosterRef}>
+        {ordered.map((employee) => {
+          const own = daily
+            .filter((s) => s.employeeId === employee.id)
+            .sort((a, b) => a.startTime.localeCompare(b.startTime));
+          return (
+            <article key={employee.id} className="mobile-member">
+              <div className="mobile-person">
+                <Avatar employee={employee} size="sm" />
+                <div>
+                  <strong>{personName(employee)}</strong>
+                  <small>{employee.position}</small>
+                </div>
+                {!own.length && <span>Repos</span>}
+                {canEdit && employee.active && (
+                  <IconButton
+                    label={`Ajouter un service pour ${personName(employee)}`}
+                    onClick={() =>
+                      onEdit({
+                        employeeId: employee.id,
+                        date: selectedDay,
+                        role: employee.position,
+                      })
+                    }
+                  >
+                    <Plus size={16} />
+                  </IconButton>
+                )}
+              </div>
+              {own.map((shift) => (
+                <button
+                  key={shift.id}
+                  className={`mobile-service tone-${toneFor(employee.department)}`}
+                  onClick={() => onEdit(shift)}
+                >
+                  <Moon size={16} />
+                  <div>
+                    <strong>
+                      {shift.startTime} — {shift.endTime}
+                    </strong>
+                    <small>{isAbsent(shift) ? "Absence" : shift.role}</small>
+                  </div>
+                  <span>{number(shiftHours(shift))} h</span>
+                  <ChevronRight size={15} />
+                </button>
               ))}
-            </select>
-          </div>
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4, display: 'block' }}>Date</label>
-            <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inputStyle} required />
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4, display: 'block' }}>Debut</label>
-              <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={inputStyle} required />
-            </div>
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4, display: 'block' }}>Fin</label>
-              <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={inputStyle} required />
-            </div>
-          </div>
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4, display: 'block' }}>Poste</label>
-            <input type="text" value={role} onChange={e => setRole(e.target.value)} style={inputStyle} placeholder="Barman, DJ..." required />
-          </div>
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4, display: 'block' }}>Notes</label>
-            <input type="text" value={notes} onChange={e => setNotes(e.target.value)} style={inputStyle} placeholder="Optionnel" />
-          </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-            {onDelete && (
-              <button
-                type="button"
-                onClick={() => { if (confirm('Supprimer ce shift ?')) onDelete(); }}
-                style={{
-                  padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                  border: '1px solid rgba(217,48,37,0.2)', background: 'rgba(217,48,37,0.06)',
-                  color: '#d93025', cursor: 'pointer',
-                }}
-              >
-                Supprimer
-              </button>
-            )}
-            <div style={{ flex: 1 }} />
-            <button type="button" onClick={onClose} style={{
-              padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-              border: '1px solid var(--border-2)', background: 'white', color: '#444', cursor: 'pointer',
-            }}>
-              Annuler
-            </button>
-            <button type="submit" style={{
-              padding: '8px 20px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-              border: 'none', background: '#1a1a1a', color: 'white', cursor: 'pointer',
-            }}>
-              {shift?.id ? 'Enregistrer' : 'Creer'}
-            </button>
-          </div>
-        </form>
+            </article>
+          );
+        })}
+        {!ordered.length && (
+          <EmptyState
+            title="Aucun membre trouvé"
+            description="Modifiez les filtres pour afficher votre équipe."
+          />
+        )}
       </div>
     </div>
+  );
+}
+function ScheduleCell({
+  employee,
+  date,
+  today,
+  canEdit,
+  onAdd,
+  children,
+}: {
+  employee: Employee;
+  date: string;
+  today: boolean;
+  canEdit: boolean;
+  onAdd: () => void;
+  children: ReactNode[];
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `${employee.id}:${date}`,
+    data: { employeeId: employee.id, date },
+    disabled: !canEdit,
+  });
+  return (
+    <td
+      ref={setNodeRef}
+      className={`schedule-cell ${today ? "today-column" : ""} ${isOver ? "drop-target" : ""}`}
+    >
+      <div className="cell-content">
+        {children}
+        {canEdit ? (
+          <button
+            className={`add-cell ${children.length ? "has-shifts" : ""}`}
+            onClick={onAdd}
+            aria-label={`Ajouter un service pour ${personName(employee)} le ${date}`}
+          >
+            <Plus size={14} />
+            <span>{children.length ? "Ajouter" : "Repos"}</span>
+          </button>
+        ) : (
+          !children.length && <span className="rest-label">Repos</span>
+        )}
+      </div>
+    </td>
+  );
+}
+function DraggableShift({
+  shift,
+  employee,
+  canEdit,
+  onClick,
+}: {
+  shift: Shift;
+  employee: Employee;
+  canEdit: boolean;
+  onClick: () => void;
+}) {
+  const { listeners, setNodeRef, isDragging } = useDraggable({
+    id: shift.id,
+    disabled: !canEdit,
+  });
+  return (
+    <button
+      ref={setNodeRef}
+      {...(canEdit ? listeners : {})}
+      type="button"
+      className={`shift-card tone-${toneFor(employee.department)} ${isAbsent(shift) ? "shift-absent" : ""} ${isDragging ? "is-dragging" : ""}`}
+      onClick={onClick}
+      aria-label={`${personName(employee)}, ${shift.date}, ${shift.startTime} à ${shift.endTime}, ${shift.role}. ${canEdit ? "Modifier le service" : "Consulter le service"}`}
+    >
+      <strong>
+        {shift.startTime}
+        <span> – </span>
+        {shift.endTime}
+      </strong>
+      <span>{shift.role}</span>
+      <small>
+        {isAbsent(shift) ? (
+          "Absence"
+        ) : shift.status === "present" ? (
+          <>
+            <Check size={11} />
+            Présent
+          </>
+        ) : (
+          <>
+            <Moon size={11} />
+            {number(shiftHours(shift))} h
+          </>
+        )}
+      </small>
+    </button>
+  );
+}
+export function DayTimeline({
+  date,
+  employees,
+  shifts,
+  onShift,
+}: {
+  date: string;
+  employees: Employee[];
+  shifts: Shift[];
+  onShift?: (shift: Shift) => void;
+}) {
+  const timelineRef = useContentTransition<HTMLElement>(date);
+  useTimelineReveal(timelineRef, date);
+  const daily = shifts.filter(
+    (s) => s.date === date && employees.some((e) => e.id === s.employeeId),
+  );
+  const people = employees.filter((e) =>
+    daily.some((s) => s.employeeId === e.id),
+  );
+  const start = Math.min(
+    18,
+    ...daily.map((s) => Math.floor(minutes(s.startTime) / 60)),
+  );
+  const end = Math.max(
+    31,
+    ...daily.map((s) => minutes(s.startTime) / 60 + shiftHours(s)),
+  );
+  const total = end - start;
+  const labels = Array.from(
+    { length: Math.floor(total / 2) + 1 },
+    (_, i) => start + i * 2,
+  );
+  return (
+    <section className="timeline-panel" ref={timelineRef}>
+      <div className="section-heading">
+        <div>
+          <h2>Le fil de la soirée</h2>
+          <p>
+            {format(new Date(`${date}T12:00:00`), "EEEE d MMMM", {
+              locale: fr,
+            })}{" "}
+            · {daily.length} service{daily.length > 1 ? "s" : ""}
+          </p>
+        </div>
+        <Badge>
+          <Moon size={12} />
+          Jusqu’au lendemain
+        </Badge>
+      </div>
+      {!daily.length ? (
+        <EmptyState
+          icon={<Moon size={23} />}
+          title="Aucun service ce jour-là"
+          description="Sélectionnez une autre journée ou ajoutez un service."
+        />
+      ) : (
+        <div
+          className="timeline-scroll"
+          tabIndex={0}
+          role="region"
+          aria-label="Frise horaire défilante"
+        >
+          <div
+            className="timeline-content"
+            style={{ "--time-columns": labels.length - 1 } as CSSProperties}
+          >
+            {people.map((employee) => (
+              <div className="timeline-row" key={employee.id}>
+                <div className="timeline-person">
+                  <Avatar employee={employee} size="xs" />
+                  <span>
+                    {employee.firstName}
+                    <small>{employee.department.split("/")[0]}</small>
+                  </span>
+                </div>
+                <div className="timeline-track">
+                  {daily
+                    .filter((s) => s.employeeId === employee.id)
+                    .map((shift) => {
+                      const style = {
+                        left: `${((minutes(shift.startTime) / 60 - start) / total) * 100}%`,
+                        width: `${(shiftHours(shift) / total) * 100}%`,
+                      };
+                      const content = (
+                        <>
+                          <span>
+                            {shift.startTime} – {shift.endTime}
+                          </span>
+                          <strong>
+                            {isAbsent(shift)
+                              ? "Absent"
+                              : `${number(shiftHours(shift))} h`}
+                          </strong>
+                        </>
+                      );
+                      return onShift ? (
+                        <button
+                          key={shift.id}
+                          className={`timeline-event tone-${toneFor(employee.department)}`}
+                          style={style}
+                          onClick={() => onShift(shift)}
+                          aria-label={`${personName(employee)}, ${shift.startTime} à ${shift.endTime}`}
+                        >
+                          {content}
+                        </button>
+                      ) : (
+                        <div
+                          key={shift.id}
+                          className={`timeline-event tone-${toneFor(employee.department)}`}
+                          style={style}
+                        >
+                          {content}
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            ))}
+            <div className="timeline-axis">
+              <span>Heure locale</span>
+              <div>
+                {labels.map((hour) => (
+                  <span
+                    key={hour}
+                    style={{ left: `${((hour - start) / total) * 100}%` }}
+                  >
+                    {String(hour % 24).padStart(2, "0")} h
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+function ShiftEditor({
+  shift,
+  employees,
+  shifts,
+  readOnly,
+  onSave,
+  onDelete,
+  onClose,
+  onDuplicate,
+}: {
+  shift: Partial<Shift>;
+  employees: Employee[];
+  shifts: Shift[];
+  readOnly: boolean;
+  onSave: (shift: Shift) => Promise<void>;
+  onDelete: (shift: Shift) => Promise<void>;
+  onClose: () => void;
+  onDuplicate: (shift: Shift) => void;
+}) {
+  const defaults =
+    employees.find((e) => e.id === shift.employeeId) ||
+    employees.find((e) => e.active && e.role !== "admin") ||
+    employees.find((e) => e.active);
+  const [form, setForm] = useState<Shift>({
+    id: shift.id || generateId(),
+    revision: shift.revision,
+    employeeId: shift.employeeId || defaults?.id || "",
+    date: shift.date || format(new Date(), "yyyy-MM-dd"),
+    startTime: shift.startTime || "22:00",
+    endTime: shift.endTime || "05:00",
+    role: shift.role || defaults?.position || "",
+    notes: shift.notes || "",
+    status: shift.status || "scheduled",
+    isNightShift: shift.isNightShift,
+  });
+  const { pending, error, setError, run } = useAsyncAction();
+  const [deleting, setDeleting] = useState(false);
+
+  const change = (key: keyof Shift, value: string) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setError("");
+  };
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    if (readOnly) return;
+    if (!form.employeeId) {
+      setError("Sélectionnez un membre.");
+      return;
+    }
+    if (!shiftHours(form)) {
+      setError("Les heures de début et de fin doivent être différentes.");
+      return;
+    }
+    if (overlaps(form, shifts)) {
+      setError(
+        "Ce membre a déjà un service sur cet horaire. Modifiez les heures ou choisissez un autre jour.",
+      );
+      return;
+    }
+    void run(() => onSave(form));
+  };
+  const person = employees.find((e) => e.id === form.employeeId);
+  return (
+    <Modal
+      title={
+        readOnly
+          ? "Votre service"
+          : shift.id
+            ? "Modifier le service"
+            : "Un nouveau service"
+      }
+      description={
+        readOnly
+          ? "Les informations de votre prochain service."
+          : "Quelques détails pour une soirée bien préparée."
+      }
+      onClose={() => { if (!pending) onClose(); }}
+    >
+      <form onSubmit={submit} aria-busy={pending}>
+        <fieldset disabled={pending}>
+        <fieldset disabled={readOnly} className="form-fields">
+          <label className="field">
+            Membre de l’équipe
+            <select
+              value={form.employeeId}
+              onChange={(e) => {
+                change("employeeId", e.target.value);
+                change(
+                  "role",
+                  employees.find((emp) => emp.id === e.target.value)
+                    ?.position || "",
+                );
+              }}
+              required
+            >
+              {employees
+                .filter((e) => e.active || e.id === form.employeeId)
+                .map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {personName(e)}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <label className="field">
+            Date de début
+            <input
+              type="date"
+              value={form.date}
+              onChange={(e) => change("date", e.target.value)}
+              required
+            />
+          </label>
+          <div className="form-grid">
+            <label className="field">
+              Début
+              <input
+                type="time"
+                value={form.startTime}
+                onChange={(e) => change("startTime", e.target.value)}
+                required
+              />
+            </label>
+            <label className="field">
+              Fin
+              <input
+                type="time"
+                value={form.endTime}
+                onChange={(e) => change("endTime", e.target.value)}
+                required
+              />
+            </label>
+          </div>
+          <div className="duration-preview">
+            <Clock3 size={16} />
+            <strong>{number(shiftHours(form))} heures</strong>
+            <span>
+              {minutes(form.endTime) < minutes(form.startTime)
+                ? "Fin le lendemain"
+                : "Sur la même journée"}
+            </span>
+          </div>
+          <label className="field">
+            Poste
+            <input
+              value={form.role}
+              onChange={(e) => change("role", e.target.value)}
+              required
+            />
+          </label>
+          <label className="field">
+            Présence
+            <select
+              value={form.status}
+              onChange={(e) => change("status", e.target.value)}
+            >
+              <option value="scheduled">Prévu</option>
+              <option value="present">Présent</option>
+              <option value="absence_justified">Absence justifiée</option>
+              <option value="absence_unjustified">Absence injustifiée</option>
+            </select>
+          </label>
+          <label className="field">
+            Note <span className="optional">facultatif</span>
+            <textarea
+              value={form.notes}
+              onChange={(e) => change("notes", e.target.value)}
+              rows={2}
+              placeholder="Une information utile pour ce service…"
+            />
+          </label>
+        </fieldset>
+        {error && (
+          <p role="alert" className="form-error">
+            {error}
+          </p>
+        )}
+        {deleting ? (
+          <div className="delete-confirm">
+            <p>
+              Supprimer le service de {person?.firstName} le{" "}
+              {format(new Date(`${form.date}T12:00:00`), "d MMMM", {
+                locale: fr,
+              })}{" "}
+              ?
+            </p>
+            <div>
+              <Button onClick={() => setDeleting(false)}>Conserver</Button>
+              <Button variant="danger" onClick={() => void run(() => onDelete(form))}>
+                Confirmer la suppression
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="dialog-footer">
+            {!readOnly && shift.id && (
+              <>
+                <IconButton
+                  label="Supprimer le service"
+                  onClick={() => setDeleting(true)}
+                >
+                  <Trash2 size={16} />
+                </IconButton>
+                <IconButton
+                  label="Dupliquer le service au lendemain"
+                  onClick={() => onDuplicate(form)}
+                >
+                  <Copy size={16} />
+                </IconButton>
+              </>
+            )}
+            <span className="flex-spacer" />
+            <Button onClick={onClose}>{readOnly ? "Fermer" : "Annuler"}</Button>
+            {!readOnly && (
+              <Button variant="primary" type="submit">
+                <Check size={15} />
+                {pending ? "Enregistrement…" : shift.id ? "Enregistrer" : "Créer le service"}
+              </Button>
+            )}
+          </div>
+        )}
+        </fieldset>
+      </form>
+    </Modal>
   );
 }

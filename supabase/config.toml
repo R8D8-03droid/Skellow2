@@ -1,0 +1,21 @@
+project_id = "skellow"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 17
+
+[auth]
+enabled = true
+site_url = "http://localhost:3100"
+enable_signup = false
+
+[auth.email]
+enable_signup = false
+enable_confirmations = true

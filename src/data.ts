@@ -1,114 +1,115 @@
-import { Employee, Shift } from './types';
+import { Employee, Shift } from "./types";
+import { addDays, format, startOfWeek } from "date-fns";
 
-const defaultEmployees: Employee[] = [
+const defaultEmployees: (Employee & { password: string })[] = [
   {
-    id: 'admin-1',
-    firstName: 'Alex',
-    lastName: 'Dupont',
-    email: 'admin@nightclub.fr',
-    phone: '06 12 34 56 78',
-    position: 'Directeur',
-    department: 'Direction',
-    contractType: 'CDI',
-    startDate: '2020-01-15',
+    id: "admin-1",
+    firstName: "Alex",
+    lastName: "Dupont",
+    email: "admin@nightclub.fr",
+    phone: "06 12 34 56 78",
+    position: "Directeur",
+    department: "Direction",
+    contractType: "CDI",
+    startDate: "2020-01-15",
     hourlyRate: 18,
     monthlyHours: 151.67,
-    socialSecurityNumber: '1 85 12 75 123 456 78',
-    address: '12 Rue de la Nuit',
-    postalCode: '75011',
-    city: 'Paris',
-    bankRIB: 'FR76 1234 5678 9012 3456 7890 123',
-    password: 'admin123',
-    role: 'admin',
+    socialSecurityNumber: "1 85 12 75 123 456 78",
+    address: "12 Rue de la Nuit",
+    postalCode: "75011",
+    city: "Paris",
+    bankRIB: "FR76 1234 5678 9012 3456 7890 123",
+    password: "admin123",
+    role: "admin",
     active: true,
     nightWork: false,
   },
   {
-    id: 'emp-1',
-    firstName: 'DJ',
-    lastName: 'Max',
-    email: 'dj.max@nightclub.fr',
-    phone: '06 23 45 67 89',
-    position: 'DJ',
-    department: 'DJ/Animation',
-    contractType: 'CDI',
-    startDate: '2021-03-01',
+    id: "emp-1",
+    firstName: "DJ",
+    lastName: "Max",
+    email: "dj.max@nightclub.fr",
+    phone: "06 23 45 67 89",
+    position: "DJ",
+    department: "DJ/Animation",
+    contractType: "CDI",
+    startDate: "2021-03-01",
     hourlyRate: 15,
     monthlyHours: 151.67,
-    socialSecurityNumber: '1 90 05 75 234 567 89',
-    address: '45 Avenue des Clubs',
-    postalCode: '75018',
-    city: 'Paris',
-    bankRIB: 'FR76 2345 6789 0123 4567 8901 234',
-    password: 'max123',
-    role: 'employee',
+    socialSecurityNumber: "1 90 05 75 234 567 89",
+    address: "45 Avenue des Clubs",
+    postalCode: "75018",
+    city: "Paris",
+    bankRIB: "FR76 2345 6789 0123 4567 8901 234",
+    password: "max123",
+    role: "employee",
     active: true,
     nightWork: true,
   },
   {
-    id: 'emp-2',
-    firstName: 'Julie',
-    lastName: 'Martin',
-    email: 'julie.martin@nightclub.fr',
-    phone: '06 34 56 78 90',
-    position: 'Barmaid',
-    department: 'Bar',
-    contractType: 'CDD',
-    startDate: '2024-06-01',
-    endDate: '2025-06-01',
+    id: "emp-2",
+    firstName: "Julie",
+    lastName: "Martin",
+    email: "julie.martin@nightclub.fr",
+    phone: "06 34 56 78 90",
+    position: "Barmaid",
+    department: "Bar",
+    contractType: "CDD",
+    startDate: "2024-06-01",
+    endDate: "2025-06-01",
     hourlyRate: 11.65,
     monthlyHours: 151.67,
-    socialSecurityNumber: '2 95 08 69 345 678 90',
-    address: '78 Boulevard Voltaire',
-    postalCode: '75011',
-    city: 'Paris',
-    bankRIB: 'FR76 3456 7890 1234 5678 9012 345',
-    password: 'julie123',
-    role: 'employee',
+    socialSecurityNumber: "2 95 08 69 345 678 90",
+    address: "78 Boulevard Voltaire",
+    postalCode: "75011",
+    city: "Paris",
+    bankRIB: "FR76 3456 7890 1234 5678 9012 345",
+    password: "julie123",
+    role: "employee",
     active: true,
     nightWork: true,
   },
   {
-    id: 'emp-3',
-    firstName: 'Karim',
-    lastName: 'Benali',
-    email: 'karim.benali@nightclub.fr',
-    phone: '06 45 67 89 01',
-    position: 'Agent de sécurité',
-    department: 'Sécurité',
-    contractType: 'CDI',
-    startDate: '2019-09-15',
+    id: "emp-3",
+    firstName: "Karim",
+    lastName: "Benali",
+    email: "karim.benali@nightclub.fr",
+    phone: "06 45 67 89 01",
+    position: "Agent de sécurité",
+    department: "Sécurité",
+    contractType: "CDI",
+    startDate: "2019-09-15",
     hourlyRate: 12.5,
     monthlyHours: 151.67,
-    socialSecurityNumber: '1 88 03 75 456 789 01',
-    address: '23 Rue du Faubourg',
-    postalCode: '75010',
-    city: 'Paris',
-    bankRIB: 'FR76 4567 8901 2345 6789 0123 456',
-    password: 'karim123',
-    role: 'employee',
+    socialSecurityNumber: "1 88 03 75 456 789 01",
+    address: "23 Rue du Faubourg",
+    postalCode: "75010",
+    city: "Paris",
+    bankRIB: "FR76 4567 8901 2345 6789 0123 456",
+    password: "karim123",
+    role: "employee",
     active: true,
     nightWork: true,
   },
   {
-    id: 'emp-4',
-    firstName: 'Léa',
-    lastName: 'Moreau',
-    email: 'lea.moreau@nightclub.fr',
-    phone: '06 56 78 90 12',
-    position: 'Hôtesse d\'accueil',
-    department: 'Accueil/Caisse',
-    contractType: 'CDI',
-    startDate: '2022-01-10',
+    id: "emp-4",
+    firstName: "Léa",
+    lastName: "Moreau",
+    email: "lea.moreau@nightclub.fr",
+    phone: "06 56 78 90 12",
+    position: "Hôtesse d'accueil",
+    department: "Accueil/Caisse",
+    contractType: "CDI",
+    startDate: "2022-01-10",
     hourlyRate: 11.65,
     monthlyHours: 151.67,
-    socialSecurityNumber: '2 93 11 75 567 890 12',
-    address: '56 Rue de Rivoli',
-    postalCode: '75004',
-    city: 'Paris',
-    bankRIB: 'FR76 5678 9012 3456 7890 1234 567',
-    password: 'lea123',
-    role: 'employee',
+    socialSecurityNumber: "2 93 11 75 567 890 12",
+    address: "56 Rue de Rivoli",
+    postalCode: "75004",
+    city: "Paris",
+    bankRIB: "FR76 5678 9012 3456 7890 1234 567",
+    password: "lea123",
+    role: "employee",
     active: true,
     nightWork: true,
   },
@@ -116,41 +117,79 @@ const defaultEmployees: Employee[] = [
 
 function generateDefaultShifts(): Shift[] {
   const shifts: Shift[] = [];
-  const today = new Date();
-  const startOfWeek = new Date(today);
-  startOfWeek.setDate(today.getDate() - today.getDay() + 1);
+  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
 
   // Horaires typiques d'une boîte de nuit (ouverture 22h-23h, fermeture 5h-6h)
   const employeeShifts = [
-    { employeeId: 'emp-1', shifts: [ // DJ Max
-      { dayOffset: 4, start: '22:00', end: '05:00', role: 'DJ' }, // Vendredi soir
-      { dayOffset: 5, start: '22:00', end: '05:00', role: 'DJ' }, // Samedi soir
-    ]},
-    { employeeId: 'emp-2', shifts: [ // Julie (Barmaid)
-      { dayOffset: 2, start: '20:00', end: '04:00', role: 'Barmaid' }, // Mercredi
-      { dayOffset: 4, start: '20:00', end: '04:00', role: 'Barmaid' }, // Vendredi
-      { dayOffset: 5, start: '20:00', end: '04:00', role: 'Barmaid' }, // Samedi
-    ]},
-    { employeeId: 'emp-3', shifts: [ // Karim (Sécurité)
-      { dayOffset: 3, start: '21:00', end: '06:00', role: 'Agent de sécurité' }, // Jeudi
-      { dayOffset: 4, start: '21:00', end: '06:00', role: 'Agent de sécurité' }, // Vendredi
-      { dayOffset: 5, start: '21:00', end: '06:00', role: 'Agent de sécurité' }, // Samedi
-    ]},
-    { employeeId: 'emp-4', shifts: [ // Léa (Accueil)
-      { dayOffset: 4, start: '22:00', end: '04:00', role: 'Hôtesse d\'accueil' }, // Vendredi
-      { dayOffset: 5, start: '22:00', end: '04:00', role: 'Hôtesse d\'accueil' }, // Samedi
-    ]},
+    {
+      employeeId: "emp-1",
+      shifts: [
+        // DJ Max
+        { dayOffset: 4, start: "22:00", end: "05:00", role: "DJ" }, // Vendredi soir
+        { dayOffset: 5, start: "22:00", end: "05:00", role: "DJ" }, // Samedi soir
+      ],
+    },
+    {
+      employeeId: "emp-2",
+      shifts: [
+        // Julie (Barmaid)
+        { dayOffset: 2, start: "20:00", end: "04:00", role: "Barmaid" }, // Mercredi
+        { dayOffset: 4, start: "20:00", end: "04:00", role: "Barmaid" }, // Vendredi
+        { dayOffset: 5, start: "20:00", end: "04:00", role: "Barmaid" }, // Samedi
+      ],
+    },
+    {
+      employeeId: "emp-3",
+      shifts: [
+        // Karim (Sécurité)
+        {
+          dayOffset: 3,
+          start: "21:00",
+          end: "06:00",
+          role: "Agent de sécurité",
+        }, // Jeudi
+        {
+          dayOffset: 4,
+          start: "21:00",
+          end: "06:00",
+          role: "Agent de sécurité",
+        }, // Vendredi
+        {
+          dayOffset: 5,
+          start: "21:00",
+          end: "06:00",
+          role: "Agent de sécurité",
+        }, // Samedi
+      ],
+    },
+    {
+      employeeId: "emp-4",
+      shifts: [
+        // Léa (Accueil)
+        {
+          dayOffset: 4,
+          start: "22:00",
+          end: "04:00",
+          role: "Hôtesse d'accueil",
+        }, // Vendredi
+        {
+          dayOffset: 5,
+          start: "22:00",
+          end: "04:00",
+          role: "Hôtesse d'accueil",
+        }, // Samedi
+      ],
+    },
   ];
 
   let id = 1;
   employeeShifts.forEach(({ employeeId, shifts: empShifts }) => {
     empShifts.forEach(({ dayOffset, start, end, role }) => {
-      const date = new Date(startOfWeek);
-      date.setDate(startOfWeek.getDate() + dayOffset);
+      const date = addDays(weekStart, dayOffset);
       shifts.push({
         id: `shift-${id++}`,
         employeeId,
-        date: date.toISOString().split('T')[0],
+        date: format(date, "yyyy-MM-dd"),
         startTime: start,
         endTime: end,
         role,
@@ -162,66 +201,53 @@ function generateDefaultShifts(): Shift[] {
 }
 
 export function loadEmployees(): Employee[] {
-  const stored = localStorage.getItem('hotel_employees');
-  if (stored) {
-    const employees = JSON.parse(stored);
-    
-    // Vérifier si les données sont obsolètes (ancien système hôtel)
-    const hasOldHotelData = employees.some((emp: Employee) => 
-      emp.email && emp.email.includes('@hotel.fr')
-    );
-    
-    // Si données obsolètes, réinitialiser avec les nouvelles données
-    if (hasOldHotelData) {
-      console.log('Migration des données: ancien système hôtel détecté, réinitialisation...');
-      localStorage.setItem('hotel_employees', JSON.stringify(defaultEmployees));
-      return defaultEmployees;
-    }
-    
-    return employees;
+  const stored = localStorage.getItem("hotel_employees");
+  const legacy: (Employee & { password?: string })[] = stored ? JSON.parse(stored) : defaultEmployees;
+  if (!Array.isArray(legacy)) throw new Error("Invalid local employee data");
+  const credentials = JSON.parse(localStorage.getItem("hotel_demo_credentials") || "{}");
+  let migrated = !stored;
+  const employees = legacy.map(({ password, ...employee }) => {
+    if (password !== undefined) { credentials[employee.id] = password; migrated = true; }
+    return { ...employee, revision: employee.revision || 1 };
+  });
+  if (migrated) {
+    localStorage.setItem("hotel_demo_credentials", JSON.stringify(credentials));
+    saveEmployees(employees);
   }
-  localStorage.setItem('hotel_employees', JSON.stringify(defaultEmployees));
-  return defaultEmployees;
+  return employees;
+}
+
+// These intentionally simple credentials belong only to the local demonstration.
+// Connected authentication never reads this store.
+export function demoPasswordMatches(id: string, password: string): boolean {
+  return JSON.parse(localStorage.getItem("hotel_demo_credentials") || "{}")[id] === password;
+}
+export function saveDemoPassword(id: string, password: string) {
+  const credentials = JSON.parse(localStorage.getItem("hotel_demo_credentials") || "{}");
+  localStorage.setItem("hotel_demo_credentials", JSON.stringify({ ...credentials, [id]: password }));
 }
 
 export function saveEmployees(employees: Employee[]) {
-  localStorage.setItem('hotel_employees', JSON.stringify(employees));
+  localStorage.setItem("hotel_employees", JSON.stringify(employees));
 }
 
 export function loadShifts(): Shift[] {
-  const stored = localStorage.getItem('hotel_shifts');
+  const stored = localStorage.getItem("hotel_shifts");
   if (stored) {
     const shifts = JSON.parse(stored);
-    
-    // Vérifier si les shifts contiennent des anciens rôles (hôtel)
-    const hasOldHotelShifts = shifts.some((shift: Shift) => 
-      shift.role && (
-        shift.role.includes('Chef de rang') || 
-        shift.role.includes('Serveuse') ||
-        shift.role.includes('Cuisinier') ||
-        shift.role.includes('Réceptionniste')
-      )
-    );
-    
-    // Si données obsolètes, réinitialiser avec les nouvelles données
-    if (hasOldHotelShifts) {
-      console.log('Migration des shifts: ancien système hôtel détecté, réinitialisation...');
-      const defaultShifts = generateDefaultShifts();
-      localStorage.setItem('hotel_shifts', JSON.stringify(defaultShifts));
-      return defaultShifts;
-    }
-    
-    return shifts;
+
+    if (!Array.isArray(shifts)) throw new Error("Invalid local shift data");
+    return shifts.map((shift: Shift) => ({ ...shift, revision: shift.revision || 1 }));
   }
   const defaultShifts = generateDefaultShifts();
-  localStorage.setItem('hotel_shifts', JSON.stringify(defaultShifts));
-  return defaultShifts;
+  localStorage.setItem("hotel_shifts", JSON.stringify(defaultShifts));
+  return defaultShifts.map((shift) => ({ ...shift, revision: 1 }));
 }
 
 export function saveShifts(shifts: Shift[]) {
-  localStorage.setItem('hotel_shifts', JSON.stringify(shifts));
+  localStorage.setItem("hotel_shifts", JSON.stringify(shifts));
 }
 
 export function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  return crypto.randomUUID();
 }

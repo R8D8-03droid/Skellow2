@@ -1,308 +1,808 @@
-import { useState } from 'react';
-import { Employee } from '../types';
-import { generateId } from '../data';
-import { format } from 'date-fns';
-
-interface EmployeeManagementProps {
+import { FormEvent, useEffect, useState } from "react";
+import { addDays, format } from "date-fns";
+import { fr } from "date-fns/locale";
+import {
+  ArrowDownToLine,
+  ArrowRight,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Grid2X2,
+  List,
+  Mail,
+  Moon,
+  Plus,
+  UserPlus,
+  Users,
+} from "lucide-react";
+import { Employee, Shift } from "../types";
+import type { ViewIntent } from "../App";
+import { generateId } from "../data";
+import { useAsyncAction } from "../backend/useAsyncAction";
+import {
+  Avatar,
+  Badge,
+  Button,
+  EmptyState,
+  IconButton,
+  Modal,
+  PageHeader,
+  SearchInput,
+  Segmented,
+  SelectionGroup,
+  csvCell,
+  downloadText,
+  money,
+  number,
+  personName,
+  toneFor,
+} from "./ui";
+import { useCollectionMotion } from "../motion";
+import { DayTimeline } from "./Planning";
+interface Props {
   employees: Employee[];
-  onUpdateEmployees: (employees: Employee[]) => void;
+  shifts: Shift[];
+  currentUser: Employee;
+  mode: "demo" | "supabase";
+  onSaveEmployee: (employee: Employee, demoPassword?: string) => Promise<void>;
+  onDeleteEmployee: (employee: Employee) => Promise<void>;
+  intent: ViewIntent;
+  notify: (message: string) => void;
 }
-
-export default function EmployeeManagement({ employees, onUpdateEmployees }: EmployeeManagementProps) {
-  const [showForm, setShowForm] = useState(false);
-  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterDepartment, setFilterDepartment] = useState('all');
-
-  const departments = [...new Set(employees.map(e => e.department))];
-
-  const filteredEmployees = employees.filter(e => {
-    const matchSearch = `${e.firstName} ${e.lastName} ${e.email} ${e.position}`
-      .toLowerCase().includes(searchTerm.toLowerCase());
-    const matchDept = filterDepartment === 'all' || e.department === filterDepartment;
-    return matchSearch && matchDept;
-  });
-
-  const handleSave = (employee: Employee) => {
-    const existing = employees.findIndex(e => e.id === employee.id);
-    if (existing >= 0) {
-      const updated = [...employees];
-      updated[existing] = employee;
-      onUpdateEmployees(updated);
-    } else {
-      onUpdateEmployees([...employees, { ...employee, id: generateId() }]);
-    }
-    setShowForm(false);
-    setEditingEmployee(null);
+export default function EmployeeManagement({
+  employees,
+  shifts,
+  currentUser,
+  mode,
+  onSaveEmployee,
+  onDeleteEmployee,
+  intent,
+  notify,
+}: Props) {
+  const [editing, setEditing] = useState<Employee | "new" | null>(null);
+  const [query, setQuery] = useState("");
+  const [department, setDepartment] = useState(intent.department || "all");
+  const [status, setStatus] = useState<"active" | "all" | "inactive">("active");
+  const [layout, setLayout] = useState<"grid" | "list">("grid");
+  const [timelineDate, setTimelineDate] = useState(
+    format(new Date(), "yyyy-MM-dd"),
+  );
+  useEffect(() => {
+    setDepartment(intent.department || "all");
+    if (intent.action === "create") setEditing("new");
+    if (intent.employeeId)
+      setEditing(employees.find((e) => e.id === intent.employeeId) || null);
+  }, [intent]);
+  const active = employees.filter((e) => e.active);
+  const departments = [...new Set(employees.map((e) => e.department))];
+  const filtered = employees.filter(
+    (e) =>
+      (status === "all" || e.active === (status === "active")) &&
+      (department === "all" || e.department === department) &&
+      `${personName(e)} ${e.email} ${e.position}`
+        .toLocaleLowerCase("fr")
+        .includes(query.toLocaleLowerCase("fr")),
+  );
+  const collectionRef = useCollectionMotion(
+    `${layout}:${filtered.map((person) => person.id).join(",")}`,
+  );
+  const exportEmployees = () => {
+    const data = [
+      [
+        "Prénom",
+        "Nom",
+        "E-mail",
+        "Téléphone",
+        "Poste",
+        "Département",
+        "Contrat",
+        "Début",
+        "Heures mensuelles",
+        "Actif",
+      ],
+      ...filtered.map((e) => [
+        e.firstName,
+        e.lastName,
+        e.email,
+        e.phone,
+        e.position,
+        e.department,
+        e.contractType,
+        e.startDate,
+        e.monthlyHours,
+        e.active ? "Oui" : "Non",
+      ]),
+    ];
+    downloadText(
+      "equipe-skellow.csv",
+      data.map((row) => row.map(csvCell).join(";")).join("\r\n"),
+    );
+    notify("La liste des membres a été exportée.");
   };
-
-  const handleDelete = (id: string) => {
-    if (confirm('Supprimer cet employe ?')) {
-      onUpdateEmployees(employees.filter(e => e.id !== id));
-    }
+  const save = async (employee: Employee, demoPassword?: string) => {
+    await onSaveEmployee(employee, demoPassword);
+    setEditing(null);
+    notify("La fiche du membre a été enregistrée.");
   };
-
-  const handleToggleActive = (id: string) => {
-    onUpdateEmployees(employees.map(e => e.id === id ? { ...e, active: !e.active } : e));
-  };
-
-  const deptColors: Record<string, string> = {
-    'Bar': 'var(--yellow)', 'Sécurité': 'var(--peach)', 'Accueil/Caisse': 'var(--green)',
-    'DJ/Animation': 'var(--violet)', 'Direction': 'var(--blue)', 'Vestiaire': 'var(--yellow)',
-    'Ménage/Entretien': 'var(--peach)',
-  };
-
   return (
-    <div style={{ padding: '26px 26px', background: 'var(--surface)', minHeight: '100%', animation: 'contentIn 500ms var(--ease-out) 250ms both' }}>
-
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
-        <div>
-          <h1 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.03em' }}>Employes</h1>
-          <p style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 3 }}>{employees.filter(e => e.active).length} actifs</p>
-        </div>
-        <button onClick={() => { setEditingEmployee(null); setShowForm(true); }} style={{
-          fontSize: 12, fontWeight: 600, color: 'var(--panel)',
-          background: 'var(--text)', border: 'none',
-          borderRadius: 8, padding: '7px 16px', cursor: 'pointer',
-        }}>
-          + Nouvel employe
-        </button>
+    <div className="page team-page">
+      <PageHeader
+        title="Une belle équipe."
+        description={
+          <>
+            {active.length} membres actifs,{" "}
+            {new Set(active.map((e) => e.department)).size} départements. Et une
+            même énergie.
+          </>
+        }
+      >
+        <Button onClick={exportEmployees} disabled={!filtered.length}>
+          <ArrowDownToLine size={16} />
+          Exporter
+        </Button>
+        <Button variant="primary" onClick={() => setEditing("new")}>
+          <UserPlus size={16} />
+          Ajouter un membre
+        </Button>
+      </PageHeader>
+      <div className="page-tabs">
+        <SelectionGroup
+          className="tab-buttons"
+          value={status}
+          label="Statut des membres"
+        >
+          <button
+            onClick={() => setStatus("active")}
+            className={status === "active" ? "active" : ""}
+            aria-pressed={status === "active"}
+          >
+            <Users size={16} />
+            Membres actifs<Badge>{active.length}</Badge>
+          </button>
+          <button
+            onClick={() => setStatus("all")}
+            className={status === "all" ? "active" : ""}
+            aria-pressed={status === "all"}
+          >
+            Tous les membres
+          </button>
+          <button
+            onClick={() => setStatus("inactive")}
+            className={status === "inactive" ? "active" : ""}
+            aria-pressed={status === "inactive"}
+          >
+            Archivés<Badge>{employees.length - active.length}</Badge>
+          </button>
+        </SelectionGroup>
       </div>
-
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <div style={{ flex: 1, position: 'relative' }}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="#aaa" strokeWidth="1.8" width="15" height="15"
-            style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}>
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <input
-            type="text" placeholder="Rechercher..."
-            value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-            style={{
-              width: '100%', padding: '8px 12px 8px 36px', borderRadius: 8,
-              border: '1px solid var(--border-2)', fontSize: 13, outline: 'none', background: 'white',
-              transition: 'border-color 150ms ease',
-            }}
-            onFocus={e => (e.currentTarget.style.borderColor = 'var(--text)')}
-            onBlur={e => (e.currentTarget.style.borderColor = 'var(--border-2)')}
+      <div className="section-toolbar">
+        <div className="section-title">
+          <h2>
+            {department === "all" ? "Les visages de vos soirées" : department}
+          </h2>
+          <span className="count-label">{filtered.length}</span>
+        </div>
+        <div className="filter-controls">
+          <SearchInput
+            value={query}
+            onChange={setQuery}
+            label="Rechercher dans l’équipe"
+            placeholder="Rechercher un membre…"
+          />
+          <select
+            value={department}
+            onChange={(e) => setDepartment(e.target.value)}
+            aria-label="Filtrer l’équipe par département"
+          >
+            <option value="all">Tous les départements</option>
+            {departments.map((d) => (
+              <option key={d}>{d}</option>
+            ))}
+          </select>
+          <Segmented
+            value={layout}
+            onChange={setLayout}
+            label="Présentation des membres"
+            options={[
+              { value: "grid", label: "Grille", icon: <Grid2X2 size={16} /> },
+              { value: "list", label: "Liste", icon: <List size={17} /> },
+            ]}
           />
         </div>
-        <select value={filterDepartment} onChange={e => setFilterDepartment(e.target.value)} style={{
-          padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-2)',
-          fontSize: 13, background: 'white', outline: 'none', cursor: 'pointer',
-        }}>
-          <option value="all">Tous</option>
-          {departments.map(d => <option key={d} value={d}>{d}</option>)}
-        </select>
       </div>
-
-      {/* Table */}
-      <div style={{
-        background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 14,
-        overflow: 'hidden',
-      }}>
-        {/* Table header */}
-        <div style={{
-          display: 'grid', gridTemplateColumns: '1fr 120px 100px 100px 140px',
-          gap: 8, padding: '12px 20px', borderBottom: '1px solid var(--border)',
-        }}>
-          {['Employe', 'Departement', 'Contrat', 'Taux', 'Actions'].map(h => (
-            <span key={h} style={{
-              fontSize: 10.5, fontWeight: 600, color: 'var(--text-dim)',
-              letterSpacing: '0.05em', textTransform: 'uppercase',
-            }}>{h}</span>
-          ))}
-        </div>
-
-        {/* Rows */}
-        {filteredEmployees.map((emp, i) => (
-          <div key={emp.id} style={{
-            display: 'grid', gridTemplateColumns: '1fr 120px 100px 100px 140px',
-            gap: 8, alignItems: 'center', padding: '12px 20px',
-            borderBottom: i < filteredEmployees.length - 1 ? '1px solid var(--border)' : 'none',
-            opacity: emp.active ? 1 : 0.5,
-            transition: 'background 120ms ease',
-            cursor: 'pointer',
-            animation: `fadeInUp 350ms var(--ease-out) ${i * 30}ms both`,
-          }}
-          onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface)')}
-          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-          onClick={() => { setEditingEmployee(emp); setShowForm(true); }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{
-                width: 28, height: 28, borderRadius: '50%',
-                background: deptColors[emp.department] || 'var(--text-muted)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 10, fontWeight: 700, color: 'white', flexShrink: 0,
-              }}>
-                {emp.firstName[0]}{emp.lastName[0]}
-              </div>
-              <div>
-                <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{emp.firstName} {emp.lastName}</p>
-                <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>{emp.position}</p>
-              </div>
-            </div>
-            <span style={{
-              fontSize: 10.5, fontWeight: 600, padding: '3px 8px', borderRadius: 5,
-              background: `${deptColors[emp.department] || 'var(--text-muted)'}18`,
-              color: deptColors[emp.department] || 'var(--text-muted)',
-            }}>
-              {emp.department.split('/')[0]}
-            </span>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{emp.contractType}</span>
-            <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-              {emp.hourlyRate.toFixed(2)}€/h
-            </span>
-            <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
-              <SmallBtn onClick={() => handleToggleActive(emp.id)} color={emp.active ? 'var(--text-muted)' : 'var(--green)'}>
-                {emp.active ? 'Desactiver' : 'Activer'}
-              </SmallBtn>
-              <SmallBtn onClick={() => handleDelete(emp.id)} color="var(--red)">Suppr.</SmallBtn>
-            </div>
+      <div ref={collectionRef} className="member-collection">
+        {!filtered.length ? (
+          <div className="panel">
+            <EmptyState
+              icon={<Users />}
+              title={
+                status === "inactive"
+                  ? "Aucun membre archivé"
+                  : "Aucun membre trouvé"
+              }
+              description={
+                status === "inactive"
+                  ? "Les membres désactivés restent accessibles ici."
+                  : "Essayez un autre nom ou un autre département."
+              }
+              action={
+                (query || department !== "all") && (
+                  <Button
+                    onClick={() => {
+                      setQuery("");
+                      setDepartment("all");
+                    }}
+                  >
+                    Réinitialiser les filtres
+                  </Button>
+                )
+              }
+            />
           </div>
-        ))}
-
-        {filteredEmployees.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '32px 0' }}>
-            <p style={{ fontSize: 13, color: 'var(--text-dim)' }}>Aucun employe trouve</p>
+        ) : layout === "grid" ? (
+          <div className="member-grid">
+            {filtered.map((employee) => (
+              <article
+                key={employee.id}
+                data-motion-key={employee.id}
+                className={`member-card ${!employee.active ? "member-inactive" : ""}`}
+              >
+                <div className="member-card-top">
+                  <Avatar employee={employee} size="lg" />
+                  <Badge tone={employee.active ? "sage" : "neutral"} dot>
+                    {employee.active ? "Actif" : "Archivé"}
+                  </Badge>
+                </div>
+                <button
+                  className="member-name"
+                  onClick={() => setEditing(employee)}
+                >
+                  {personName(employee)}
+                  <ArrowRight size={17} />
+                </button>
+                <p className="member-role">{employee.position}</p>
+                <div className="member-facts">
+                  <div>
+                    <span className="sr-only">Département</span>
+                    <Badge tone={toneFor(employee.department)} dot>
+                      {employee.department.split("/")[0]}
+                    </Badge>
+                  </div>
+                  <div>
+                    <span className="sr-only">Contrat</span>
+                    <strong>
+                      {employee.contractType}
+                      <span className="separator-dot">·</span>
+                      {number(employee.monthlyHours)} h
+                    </strong>
+                  </div>
+                </div>
+                <div className="member-contact">
+                  <a href={`mailto:${employee.email}`}>
+                    <Mail size={13} />
+                    {employee.email}
+                  </a>
+                  <span>
+                    Depuis{" "}
+                    {format(
+                      new Date(`${employee.startDate}T12:00:00`),
+                      "MMM yyyy",
+                      { locale: fr },
+                    )}
+                  </span>
+                </div>
+                <button
+                  className="member-open"
+                  onClick={() => setEditing(employee)}
+                  aria-label={`Ouvrir la fiche de ${personName(employee)}`}
+                >
+                  <ArrowRight size={16} />
+                </button>
+              </article>
+            ))}
+            <button
+              className="invite-card"
+              data-motion-key="invite"
+              onClick={() => setEditing("new")}
+            >
+              <span>
+                <Plus size={24} />
+              </span>
+              <strong>Une place dans l’équipe</strong>
+              <p>Les belles soirées se préparent ensemble.</p>
+              <span className="invite-link">
+                Ajouter un membre
+                <ArrowRight size={14} />
+              </span>
+            </button>
+          </div>
+        ) : (
+          <div className="table-panel">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Membre</th>
+                  <th>Département</th>
+                  <th>Contrat</th>
+                  <th>Taux horaire</th>
+                  <th>Statut</th>
+                  <th>
+                    <span className="sr-only">Action</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((employee) => (
+                  <tr key={employee.id} data-motion-key={employee.id}>
+                    <td>
+                      <button
+                        className="table-person"
+                        onClick={() => setEditing(employee)}
+                      >
+                        <Avatar employee={employee} size="sm" />
+                        <span>
+                          <strong>{personName(employee)}</strong>
+                          <small>{employee.position}</small>
+                        </span>
+                      </button>
+                    </td>
+                    <td>
+                      <Badge tone={toneFor(employee.department)} dot>
+                        {employee.department}
+                      </Badge>
+                    </td>
+                    <td>
+                      {employee.contractType}
+                      <span className="table-secondary">
+                        {number(employee.monthlyHours)} h / mois
+                      </span>
+                    </td>
+                    <td className="numeric">{money(employee.hourlyRate)}</td>
+                    <td>
+                      <Badge tone={employee.active ? "sage" : "neutral"}>
+                        {employee.active ? "Actif" : "Archivé"}
+                      </Badge>
+                    </td>
+                    <td>
+                      <IconButton
+                        label={`Modifier ${personName(employee)}`}
+                        onClick={() => setEditing(employee)}
+                      >
+                        <ArrowRight size={16} />
+                      </IconButton>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
-
-      {/* Form modal */}
-      {showForm && (
-        <EmployeeFormModal
-          employee={editingEmployee}
-          onSave={handleSave}
-          onClose={() => { setShowForm(false); setEditingEmployee(null); }}
+      <div className="team-timeline-heading">
+        <h2>L’équipe en scène</h2>
+        <div className="date-navigation">
+          <IconButton
+            label="Journée précédente"
+            onClick={() =>
+              setTimelineDate(
+                format(
+                  addDays(new Date(`${timelineDate}T12:00:00`), -1),
+                  "yyyy-MM-dd",
+                ),
+              )
+            }
+          >
+            <ChevronLeft size={16} />
+          </IconButton>
+          <input
+            type="date"
+            aria-label="Journée de l’équipe"
+            value={timelineDate}
+            onChange={(e) => {
+              if (e.target.value) setTimelineDate(e.target.value);
+            }}
+          />
+          <IconButton
+            label="Journée suivante"
+            onClick={() =>
+              setTimelineDate(
+                format(
+                  addDays(new Date(`${timelineDate}T12:00:00`), 1),
+                  "yyyy-MM-dd",
+                ),
+              )
+            }
+          >
+            <ChevronRight size={16} />
+          </IconButton>
+        </div>
+      </div>
+      <DayTimeline date={timelineDate} employees={filtered} shifts={shifts} />
+      {editing && (
+        <EmployeeEditor
+          employee={editing === "new" ? null : editing}
+          employees={employees}
+          shifts={shifts}
+          currentUser={currentUser}
+          mode={mode}
+          onSave={save}
+          onClose={() => setEditing(null)}
+          onDelete={async (employee) => {
+            await onDeleteEmployee(employee);
+            setEditing(null);
+            notify("Le membre a été supprimé.");
+          }}
         />
       )}
     </div>
   );
 }
-
-function SmallBtn({ onClick, color, children }: { onClick: () => void; color: string; children: React.ReactNode }) {
-  return (
-    <button onClick={onClick} style={{
-      fontSize: 11, fontWeight: 600, padding: '4px 8px', borderRadius: 5,
-      border: 'none', background: `${color}12`, color,
-      cursor: 'pointer', transition: 'background 150ms ease',
-    }}
-    onMouseEnter={e => (e.currentTarget.style.background = `${color}22`)}
-    onMouseLeave={e => (e.currentTarget.style.background = `${color}12`)}
-    >
-      {children}
-    </button>
-  );
-}
-
-function EmployeeFormModal({ employee, onSave, onClose }: {
-  employee: Employee | null; onSave: (e: Employee) => void; onClose: () => void;
+function EmployeeEditor({
+  employee,
+  employees,
+  shifts,
+  currentUser,
+  mode,
+  onSave,
+  onClose,
+  onDelete,
+}: {
+  employee: Employee | null;
+  employees: Employee[];
+  shifts: Shift[];
+  currentUser: Employee;
+  mode: "demo" | "supabase";
+  onSave: (employee: Employee, demoPassword?: string) => Promise<void>;
+  onClose: () => void;
+  onDelete: (employee: Employee) => Promise<void>;
 }) {
-  const [form, setForm] = useState<Partial<Employee>>(
+  const [form, setForm] = useState<Employee>(
     employee || {
-      firstName: '', lastName: '', email: '', phone: '', position: '',
-      department: 'Bar', contractType: 'CDI', startDate: format(new Date(), 'yyyy-MM-dd'),
-      hourlyRate: 11.65, monthlyHours: 151.67, socialSecurityNumber: '',
-      address: '', postalCode: '', city: '', bankRIB: '', password: '',
-      role: 'employee', active: true,
-    }
+      id: generateId(),
+      firstName: "",
+      lastName: "",
+      email: "",
+      phone: "",
+      position: "",
+      department: "Bar",
+      contractType: "CDI",
+      startDate: format(new Date(), "yyyy-MM-dd"),
+      hourlyRate: 11.65,
+      monthlyHours: 151.67,
+      socialSecurityNumber: "",
+      address: "",
+      postalCode: "",
+      city: "",
+      bankRIB: "",
+      role: "employee",
+      active: true,
+      nightWork: true,
+    },
   );
-
-  const handleChange = (field: keyof Employee, value: string | number | boolean) => {
-    setForm(prev => ({ ...prev, [field]: value }));
+  const { pending, error, setError, run } = useAsyncAction();
+  const [demoPassword, setDemoPassword] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const self = employee?.id === currentUser.id;
+  const set = (field: keyof Employee, value: string | number | boolean) => {
+    setForm((previous) => ({ ...previous, [field]: value }));
+    setError("");
   };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSave(form as Employee);
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    if (
+      employees.some(
+        (e) =>
+          e.id !== form.id &&
+          e.email.toLowerCase() === form.email.trim().toLowerCase(),
+      )
+    ) {
+      setError("Cette adresse e-mail est déjà utilisée par un autre membre.");
+      return;
+    }
+    if (form.endDate && form.endDate < form.startDate) {
+      setError("La fin du contrat doit suivre sa date de début.");
+      return;
+    }
+    if (
+      !form.firstName.trim() ||
+      !form.lastName.trim() ||
+      !form.position.trim()
+    ) {
+      setError("Renseignez le prénom, le nom et le poste.");
+      return;
+    }
+    void run(() => onSave({
+      ...form,
+      firstName: form.firstName.trim(),
+      lastName: form.lastName.trim(),
+      email: form.email.trim().toLowerCase(),
+      position: form.position.trim(),
+    }, mode === "demo" ? demoPassword : undefined));
   };
-
-  const inputStyle: React.CSSProperties = {
-    width: '100%', padding: '8px 12px', borderRadius: 8,
-    border: '1px solid var(--border-2)', fontSize: 13, outline: 'none', background: 'white',
-    transition: 'border-color 150ms ease',
-  };
-  const labelStyle: React.CSSProperties = {
-    fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4, display: 'block',
-  };
-
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 50,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(4px)',
-      animation: 'fadeIn 200ms ease both',
-    }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{
-        background: 'white', borderRadius: 16, width: '100%', maxWidth: 560,
-        maxHeight: '85vh', overflowY: 'auto',
-        boxShadow: '0 24px 80px rgba(0,0,0,0.15)',
-        animation: 'fadeInUp 300ms var(--ease-out) both',
-      }}>
-        <div style={{ padding: '24px 28px 0', position: 'sticky', top: 0, background: 'white', borderRadius: '16px 16px 0 0', zIndex: 1 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', marginBottom: 20 }}>
-            {employee ? 'Modifier' : 'Nouvel employe'}
-          </h2>
-        </div>
-        <form onSubmit={handleSubmit} style={{ padding: '0 28px 28px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div><label style={labelStyle}>Prenom</label><input type="text" value={form.firstName || ''} onChange={e => handleChange('firstName', e.target.value)} style={inputStyle} required /></div>
-            <div><label style={labelStyle}>Nom</label><input type="text" value={form.lastName || ''} onChange={e => handleChange('lastName', e.target.value)} style={inputStyle} required /></div>
+    <Modal
+      title={employee ? "La fiche de votre membre" : "Bienvenue dans l’équipe"}
+      description={
+        employee
+          ? "Coordonnées, contrat et informations de travail."
+          : "Ajoutez les informations essentielles. Vous pourrez les compléter plus tard."
+      }
+      onClose={() => { if (!pending) onClose(); }}
+      wide
+    >
+      <form onSubmit={submit} aria-busy={pending}>
+        <fieldset disabled={pending}>
+        <div className="form-fields">
+          {employee && (
+            <div className="editor-profile">
+              <Avatar employee={form} size="lg" />
+              <div>
+                <h3>{personName(form)}</h3>
+                <p>{form.position}</p>
+              </div>
+              <Badge tone={form.active ? "sage" : "neutral"} dot>
+                {form.active ? "Actif" : "Archivé"}
+              </Badge>
+            </div>
+          )}
+          <div className="form-section-title">Informations personnelles</div>
+          <div className="form-grid">
+            <label className="field">
+              Prénom
+              <input
+                autoComplete="given-name"
+                value={form.firstName}
+                onChange={(e) => set("firstName", e.target.value)}
+                required
+              />
+            </label>
+            <label className="field">
+              Nom
+              <input
+                autoComplete="family-name"
+                value={form.lastName}
+                onChange={(e) => set("lastName", e.target.value)}
+                required
+              />
+            </label>
+            <label className="field">
+              Adresse e-mail
+              <input
+                type="email"
+                autoComplete="email"
+                disabled={mode === "supabase" && !!employee?.accessLinked}
+                value={form.email}
+                onChange={(e) => set("email", e.target.value)}
+                required
+              />
+            </label>
+            <label className="field">
+              Téléphone
+              <input
+                type="tel"
+                autoComplete="tel"
+                value={form.phone}
+                onChange={(e) => set("phone", e.target.value)}
+              />
+            </label>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div><label style={labelStyle}>Email</label><input type="email" value={form.email || ''} onChange={e => handleChange('email', e.target.value)} style={inputStyle} required /></div>
-            <div><label style={labelStyle}>Telephone</label><input type="tel" value={form.phone || ''} onChange={e => handleChange('phone', e.target.value)} style={inputStyle} required /></div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div><label style={labelStyle}>Poste</label><input type="text" value={form.position || ''} onChange={e => handleChange('position', e.target.value)} style={inputStyle} required /></div>
-            <div>
-              <label style={labelStyle}>Departement</label>
-              <select value={form.department || 'Bar'} onChange={e => handleChange('department', e.target.value)} style={inputStyle}>
-                {['Bar', 'Sécurité', 'Accueil/Caisse', 'Vestiaire', 'DJ/Animation', 'Direction', 'Ménage/Entretien'].map(d => (
-                  <option key={d} value={d}>{d}</option>
+          <div className="form-section-title">Au sein de l’équipe</div>
+          <div className="form-grid">
+            <label className="field">
+              Poste
+              <input
+                value={form.position}
+                onChange={(e) => set("position", e.target.value)}
+                placeholder="Ex. Barman"
+                required
+              />
+            </label>
+            <label className="field">
+              Département
+              <select
+                value={form.department}
+                onChange={(e) => set("department", e.target.value)}
+              >
+                {[
+                  ...new Set([
+                    "Bar",
+                    "Sécurité",
+                    "Accueil/Caisse",
+                    "Vestiaire",
+                    "DJ/Animation",
+                    "Direction",
+                    "Ménage/Entretien",
+                    ...employees.map((e) => e.department),
+                  ]),
+                ].map((d) => (
+                  <option key={d}>{d}</option>
                 ))}
               </select>
-            </div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-            <div>
-              <label style={labelStyle}>Contrat</label>
-              <select value={form.contractType || 'CDI'} onChange={e => handleChange('contractType', e.target.value)} style={inputStyle}>
-                {['CDI', 'CDD', 'Alternance', 'Stage'].map(c => <option key={c} value={c}>{c}</option>)}
+            </label>
+            <label className="field">
+              Type de contrat
+              <select
+                value={form.contractType}
+                onChange={(e) => set("contractType", e.target.value)}
+              >
+                {["CDI", "CDD", "Alternance", "Stage"].map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
               </select>
+            </label>
+            <label className="field">
+              Date d’arrivée
+              <input
+                type="date"
+                value={form.startDate}
+                onChange={(e) => set("startDate", e.target.value)}
+                required
+              />
+            </label>
+            {form.contractType !== "CDI" && (
+              <label className="field">
+                Fin du contrat
+                <input
+                  type="date"
+                  value={form.endDate || ""}
+                  min={form.startDate}
+                  onChange={(e) => set("endDate", e.target.value)}
+                />
+              </label>
+            )}
+            <label className="field">
+              Taux horaire brut (€)
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.hourlyRate}
+                onChange={(e) => set("hourlyRate", Number(e.target.value))}
+                required
+              />
+            </label>
+            <label className="field">
+              Heures mensuelles
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.monthlyHours}
+                onChange={(e) => set("monthlyHours", Number(e.target.value))}
+                required
+              />
+            </label>
+          </div>
+          <label className="checkbox-field">
+            <input
+              type="checkbox"
+              checked={!!form.nightWork}
+              onChange={(e) => set("nightWork", e.target.checked)}
+            />
+            <Moon size={16} />
+            Travail de nuit régulier
+          </label>
+          <details className="form-details">
+            <summary>Coordonnées administratives</summary>
+            <div className="form-fields">
+              <label className="field">
+                Adresse
+                <input
+                  value={form.address}
+                  onChange={(e) => set("address", e.target.value)}
+                />
+              </label>
+              <div className="form-grid">
+                <label className="field">
+                  Code postal
+                  <input
+                    value={form.postalCode}
+                    onChange={(e) => set("postalCode", e.target.value)}
+                  />
+                </label>
+                <label className="field">
+                  Ville
+                  <input
+                    value={form.city}
+                    onChange={(e) => set("city", e.target.value)}
+                  />
+                </label>
+              </div>
+              <label className="field">
+                Numéro de sécurité sociale
+                <input
+                  value={form.socialSecurityNumber}
+                  onChange={(e) => set("socialSecurityNumber", e.target.value)}
+                />
+              </label>
+              <label className="field">
+                RIB / IBAN
+                <input
+                  value={form.bankRIB}
+                  onChange={(e) => set("bankRIB", e.target.value)}
+                />
+              </label>
             </div>
-            <div><label style={labelStyle}>Taux horaire</label><input type="number" step="0.01" value={form.hourlyRate || ''} onChange={e => handleChange('hourlyRate', parseFloat(e.target.value))} style={inputStyle} required /></div>
-            <div><label style={labelStyle}>Heures/mois</label><input type="number" step="0.01" value={form.monthlyHours || 151.67} onChange={e => handleChange('monthlyHours', parseFloat(e.target.value))} style={inputStyle} /></div>
-          </div>
-          <div><label style={labelStyle}>Date embauche</label><input type="date" value={form.startDate || ''} onChange={e => handleChange('startDate', e.target.value)} style={inputStyle} required /></div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div><label style={labelStyle}>Mot de passe</label><input type="password" value={form.password || ''} onChange={e => handleChange('password', e.target.value)} style={inputStyle} required={!employee} placeholder={employee ? 'Inchange' : ''} /></div>
-            <div>
-              <label style={labelStyle}>Role</label>
-              <select value={form.role || 'employee'} onChange={e => handleChange('role', e.target.value)} style={inputStyle}>
-                <option value="employee">Employe</option>
-                <option value="admin">Admin</option>
-              </select>
+          </details>
+          <details className="form-details" open={!employee}>
+            <summary>Accès à l’espace de travail</summary>
+            <div className="form-grid">
+              {mode === "demo" ? <label className="field">
+                {employee ? "Nouveau mot de passe (facultatif)" : "Mot de passe"}
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={demoPassword}
+                  onChange={(e) => setDemoPassword(e.target.value)}
+                  required={!employee}
+                />
+              </label> : <p className="info-note">{employee?.accessLinked
+                ? "Compte de connexion lié à cette fiche."
+                : "Accès non activé. Le gestionnaire des accès doit associer un compte à cette fiche."}</p>}
+              <label className="field">
+                Rôle
+                <select
+                  value={form.role}
+                  disabled={self}
+                  onChange={(e) => set("role", e.target.value)}
+                >
+                  <option value="employee">Employé</option>
+                  <option value="admin">Administrateur</option>
+                </select>
+              </label>
             </div>
+          </details>
+          {employee && !self && (
+            <label className="checkbox-field">
+              <input
+                type="checkbox"
+                checked={form.active}
+                onChange={(e) => set("active", e.target.checked)}
+              />
+              Membre actif — désactivez pour archiver sa fiche.
+            </label>
+          )}
+        </div>
+        {error && (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        )}
+        {deleting && (
+          <div className="delete-confirm">
+            {shifts.some((s) => s.employeeId === form.id) ? (
+              <p>
+                Ce membre a des services enregistrés. Archivez sa fiche pour
+                conserver l’historique du planning.
+              </p>
+            ) : (
+              <>
+                <p>Supprimer définitivement la fiche de {personName(form)} ?</p>
+                <Button variant="danger" onClick={() => void run(() => onDelete(form))}>
+                  Confirmer la suppression
+                </Button>
+              </>
+            )}
+            <Button onClick={() => setDeleting(false)}>
+              Conserver la fiche
+            </Button>
           </div>
-
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <div style={{ flex: 1 }} />
-            <button type="button" onClick={onClose} style={{
-              padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-              border: '1px solid var(--border-2)', background: 'white', color: '#444', cursor: 'pointer',
-            }}>Annuler</button>
-            <button type="submit" style={{
-              padding: '8px 20px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-              border: 'none', background: '#1a1a1a', color: 'white', cursor: 'pointer',
-            }}>{employee ? 'Enregistrer' : 'Creer'}</button>
-          </div>
-        </form>
-      </div>
-    </div>
+        )}
+        <div className="dialog-footer">
+          {employee && !self && (
+            <Button variant="ghost" onClick={() => setDeleting(true)}>
+              Supprimer
+            </Button>
+          )}
+          <span className="flex-spacer" />
+          <Button onClick={onClose}>Annuler</Button>
+          <Button type="submit" variant="primary">
+            <Check size={16} />
+            {pending ? "Enregistrement…" : employee ? "Enregistrer" : "Ajouter le membre"}
+          </Button>
+        </div>
+        </fieldset>
+      </form>
+    </Modal>
   );
 }

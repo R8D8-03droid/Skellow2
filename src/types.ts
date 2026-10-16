@@ -16,7 +16,8 @@ export interface Employee {
   postalCode: string;
   city: string;
   bankRIB: string;
-  password: string;
+  revision?: number; // Server version used for optimistic concurrency.
+  accessLinked?: boolean; // A separately provisioned authentication account exists.
   role: 'admin' | 'employee';
   active: boolean;
   nightWork?: boolean; // Travail de nuit régulier
@@ -24,6 +25,7 @@ export interface Employee {
 
 export interface Shift {
   id: string;
+  revision?: number;
   employeeId: string;
   date: string; // YYYY-MM-DD
   startTime: string; // HH:mm
