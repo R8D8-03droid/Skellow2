@@ -8,15 +8,15 @@ Le build utilise `--base=/Skellow2/` pour charger scripts, styles et polices sou
 
 ## Mode publié
 
-Par défaut, la production présente la **démonstration locale**. Le code du backend est livré, mais aucune connexion Supabase ni migration de données n’est activée automatiquement.
+La production présente actuellement la **démonstration locale** (`SKELLOW_DATA_MODE=demo`). Le backend est installé dans VICLOUIS et ses paramètres publics sont configurés dans GitHub. Le passage aux données partagées attend la création et la validation du premier compte personnel.
 
-Après la préparation et la recette de la base décrites dans [BACKEND.md](BACKEND.md), renseigner ces **variables du dépôt GitHub** dans Settings → Secrets and variables → Actions → Variables :
+Ces **variables du dépôt GitHub** sont déjà renseignées dans Settings → Secrets and variables → Actions → Variables. Après la création du premier administrateur et la validation de la connexion décrites dans [BACKEND.md](BACKEND.md), passer seulement le mode à `supabase`, puis reconstruire :
 
 | Variable | Valeur |
 | --- | --- |
-| `VITE_SUPABASE_URL` | URL HTTPS du projet Supabase de cet établissement |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | Clé publique publishable ou ancienne clé anon |
-| `SKELLOW_DATA_MODE` | `supabase` seulement après la recette |
+| `VITE_SUPABASE_URL` | `https://lazpzvenasxvianufnwg.supabase.co` (VICLOUIS) |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Clé publique publishable de VICLOUIS, déjà renseignée |
+| `SKELLOW_DATA_MODE` | `demo` actuellement ; `supabase` après validation du premier accès |
 
 Ces deux informations de connexion sont publiques et incorporées au JavaScript. Aucun mot de passe de base, jeton opérateur ou clé `service_role`/`sb_secret_…` ne doit être utilisé ici. Les droits sur les données sont appliqués par Auth et RLS côté Supabase.
 

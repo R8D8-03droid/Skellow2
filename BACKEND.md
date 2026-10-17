@@ -1,6 +1,15 @@
 # Backend Skellow — premier lot
 
-Le dépôt contient le mode connecté et sa migration. Aucun projet Supabase hébergé n’a été configuré ou modifié pendant cette implémentation. Sans variables de connexion, l’application continue en démonstration locale.
+Le backend est installé dans le projet Supabase **VICLOUIS** (`lazpzvenasxvianufnwg`), choisi pour Skellow. La recette SQL hébergée a réussi sur PostgreSQL 17.11 ; la création du premier compte personnel et la validation de sa connexion restent à terminer. Le site publié reste donc explicitement en démonstration.
+
+## Installation actuelle
+
+- Projet : [VICLOUIS](https://supabase.com/dashboard/project/lazpzvenasxvianufnwg), région North Virginia (`us-east-1`).
+- Migration `202610160001` appliquée une seule fois dans une transaction via le SQL Editor. **Son historique CLI reste à réconcilier avant tout futur `supabase db push` ; ne pas rejouer la migration.**
+- Inscription publique et connexion anonyme désactivées ; connexion par e-mail activée, confirmation des adresses conservée.
+- Site URL Auth : `https://r8d8-03droid.github.io/Skellow2/`.
+- URL et clé publishable renseignées dans les variables GitHub ; `SKELLOW_DATA_MODE=demo` tant que le premier accès personnel n’est pas validé.
+- Au terme de la recette initiale du 17 octobre 2026 UTC (16 octobre à Los Angeles), aucun compte Auth, salarié, service ou reçu de mutation n’a été conservé.
 
 ## Périmètre
 
@@ -19,7 +28,7 @@ Ces règles s’appliquent dans PostgreSQL, y compris aux appels directs à l’
 
 ### 1. Préparer le projet et la base
 
-Utiliser un projet Supabase dédié à cet établissement. La migration crée les tables `public.employees`, `public.shifts`, les règles RLS et les fonctions nécessaires. Elle conserve les identifiants texte des anciennes données locales.
+Pour une nouvelle installation, utiliser un projet Supabase dédié à cet établissement. VICLOUIS est déjà initialisé : les commandes ci-dessous ne doivent pas y rejouer la migration. La migration crée les tables `public.employees`, `public.shifts`, les règles RLS et les fonctions nécessaires. Elle conserve les identifiants texte des anciennes données locales.
 
 Avec la CLI Supabase installée et authentifiée, depuis la racine du dépôt :
 
@@ -136,7 +145,21 @@ npm run test:browser
 PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/chemin/absolu/vers/chromium npm run test:browser
 ```
 
-Ces tests ne valident pas encore une installation Supabase hébergée. PGlite utilise une seule connexion : les conflits de révision sont testés, mais pas le timing de transactions concurrentes sur deux connexions. Après activation, vérifier sur le projet cible la persistance après reconnexion, la visibilité depuis deux sessions administrateur, les accès d’un employé, un conflit de modification simultanée et un chevauchement simultané. Utiliser des données de recette dédiées.
+Ces tests automatisés sont complétés par [`supabase/tests/hosted-smoke.sql`](supabase/tests/hosted-smoke.sql), exécuté avec succès sur VICLOUIS : 33 assertions SQL couvrent les rôles anonymes, employés, administrateurs et service_role, les tentatives de contournement, les révisions obsolètes, les reprises idempotentes, les lots atomiques, l’archivage et les chevauchements après minuit. Les quatre tables contrôlées étaient vides après rollback. Les appels HTTP anonymes à `employees` et `workspace_snapshot` ont également été refusés (HTTP 401 / PostgreSQL 42501), et l’API Auth confirme `disable_signup=true`.
+
+### Recette SQL sur une base vide
+
+Ce script s’exécute comme `postgres`, après la migration et **avant la création de tout compte réel**. Il refuse une base où `employees`, `shifts`, `auth.users` ou `mutation_receipts` contient déjà des lignes. Il utilise des comptes synthétiques sans mot de passe, teste les droits dans une transaction, puis annule toutes les données de recette. Ne jamais remplacer son `rollback` par un `commit`.
+
+Dans le SQL Editor, exécuter le fichier entier et vérifier l’absence d’erreur ainsi que les quatre compteurs à zéro après rollback. Avec une connexion PostgreSQL opérateur déjà configurée via les mécanismes habituels de `psql` :
+
+```sh
+psql -v ON_ERROR_STOP=1 -f supabase/tests/hosted-smoke.sql
+```
+
+L’arrêt à la première erreur est obligatoire. Le message de réussite est émis avant le rollback, uniquement si la transaction de test n’a pas échoué ; les compteurs finaux vérifient séparément le nettoyage. Ne pas exécuter cette recette initiale sur une base déjà utilisée.
+
+La connexion réelle par mot de passe, la persistance après reconnexion et la concurrence entre plusieurs connexions PostgreSQL restent à vérifier. PGlite et la recette SQL ci-dessus utilisent chacun une seule connexion. Avant d’activer le mode connecté en production, vérifier le premier compte personnel ; compléter ensuite la recette avec deux sessions administrateur et un employé, notamment les modifications et chevauchements simultanés, avec des données dédiées.
 
 ## Exploitation et suite
 
