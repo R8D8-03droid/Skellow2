@@ -34,6 +34,6 @@ export function fromShift(s: ShiftRecord): Shift {
     endTime: s.end_time.slice(0, 5), role: s.role, notes: s.notes, isNightShift: s.is_night_shift,
     status: s.status, revision: s.revision };
 }
-export function fromSnapshot(data: { current_employee_id: string; employees: EmployeeRecord[]; shifts: ShiftRecord[] }): WorkspaceSnapshot {
-  return { currentEmployeeId: data.current_employee_id, employees: data.employees.map(fromEmployee), shifts: data.shifts.map(fromShift) };
+export function fromSnapshot(data: { current_employee_id: string | null; employees: EmployeeRecord[]; shifts: ShiftRecord[]; account?: WorkspaceSnapshot["account"]; restaurants?: WorkspaceSnapshot["restaurants"]; restaurant_id?: string | null; membership_role?: WorkspaceSnapshot["membershipRole"] }): WorkspaceSnapshot {
+  return { ...(data.account ? { account: data.account, restaurants: data.restaurants || [], restaurantId: data.restaurant_id, membershipRole: data.membership_role } : {}), currentEmployeeId: data.current_employee_id || "", employees: data.employees.map(fromEmployee), shifts: data.shifts.map(fromShift) };
 }

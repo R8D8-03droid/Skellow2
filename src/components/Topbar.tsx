@@ -1,5 +1,5 @@
 import { Bell, ChevronRight, PanelLeftOpen, Search, RefreshCw } from "lucide-react";
-import { Employee } from "../types";
+import { CurrentUser, Employee } from "../types";
 import { Avatar, IconButton } from "./ui";
 interface Props {
   connectionLabel: string;
@@ -8,7 +8,7 @@ interface Props {
   onRefresh: () => void;
   menuExpanded: boolean;
   viewLabel: string;
-  currentUser: Employee;
+  currentUser: CurrentUser;
   onMenu: () => void;
   onSearch: () => void;
   onNotifications: () => void;

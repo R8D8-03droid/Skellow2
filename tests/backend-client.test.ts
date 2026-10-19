@@ -79,24 +79,43 @@ function fakeClient() {
   let response: any = { data: serverSnapshot(), error: null };
   let authError: any = null;
   let signedIn = true;
+  let userId = 'auth-admin';
+  let rpcGate: Promise<void> | null = null;
+  let rpcEntered: (() => void) | null = null;
   const client = {
     auth: {
       getSession: async () => ({data:{session: signedIn ? {user:{id:'auth-admin'}} : null},error:null}),
-      getUser: async () => ({data:{user:{id:'auth-admin'}},error:authError}),
+      getUser: async () => ({data:{user:{id:userId}},error:authError}),
       signInWithPassword: async (args:any) => { calls.push({name:'signIn',args}); return {error:authError}; },
       signOut: async () => ({error:authError}),
       onAuthStateChange: (listener:typeof authListener) => { authListener=listener; return {data:{subscription:{unsubscribe:()=>{}}}}; },
     },
-    rpc: async (name:string,args:any) => {calls.push({name,args}); return response;},
+    rpc: async (name:string,args:any) => {calls.push({name,args}); rpcEntered?.(); if (rpcGate) await rpcGate; return response;},
   };
   return { repo:new SupabaseRepository(client as unknown as SupabaseClient), calls,
     respond:(next:any)=>{response=next;}, authError:(error:any)=>{authError=error;},
-    loggedOut:()=>{signedIn=false;}, emit:(event:string,id:string|null)=>authListener(event,id?{user:{id}}:null) };
+    loggedOut:()=>{signedIn=false;}, setUserId:(id:string)=>{userId=id;},
+    holdRpc:()=>{ let enter!:()=>void; let release!:()=>void; const started=new Promise<void>(resolve=>{enter=resolve;}); rpcGate=new Promise<void>(resolve=>{release=resolve;}); rpcEntered=enter; return {started,release}; },
+    emit:(event:string,id:string|null)=>authListener(event,id?{user:{id}}:null) };
 }
 test('repository verifies sessions before reading; unauthenticated loads never call business RPCs', async () => {
   const f=fakeClient(); f.loggedOut(); assert.equal(await f.repo.load(),null); assert.equal(f.calls.length,0);
   const g=fakeClient(); g.authError({code:'session_not_found'});
   await assert.rejects(g.repo.load(),(e:any)=>e.code==='session'); assert.equal(g.calls.length,0);
+});
+test('repository rejects mismatched Auth identities before reading business data', async () => {
+  const f=fakeClient(); f.setUserId('other-account');
+  await assert.rejects(f.repo.load(),(e:any)=>e.code==='session');
+  assert.equal(f.calls.length,0);
+});
+test('a delayed snapshot cannot restore the previous account after an Auth change', async () => {
+  const f=fakeClient(); f.repo.subscribe(()=>{}); f.emit('INITIAL_SESSION','auth-admin');
+  const gate=f.holdRpc();
+  const loading=f.repo.load();
+  await gate.started;
+  f.emit('SIGNED_IN','other-account');
+  gate.release();
+  await assert.rejects(loading,(e:any)=>e.code==='session');
 });
 test('login errors are actionable and passwords are sent only to Auth', async () => {
   const f=fakeClient(); f.authError({status:400,code:'invalid_credentials'});

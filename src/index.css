@@ -4061,3 +4061,105 @@ input.switch {
 .connection-banner { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 12px 24px 0; padding: 12px 16px; border-radius: 16px; background: #fff1dc; color: #63451c; font-size: 13px; }
 .import-preview { max-height: 240px; overflow: auto; padding: 16px 24px; font-size: 13px; line-height: 1.8; }
 @media (max-width: 600px) { .connection-banner { margin-inline: 12px; flex-wrap: wrap; } }
+
+/* Restaurant accounts reuse the workspace's controls and forest palette. */
+.auth-notice {
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--forest-soft);
+  color: var(--forest);
+  line-height: 1.65;
+}
+.login-card > .auth-notice { color: var(--forest); margin-top: 20px; }
+.google-signin { width: 100%; margin-top: 24px; min-height: 44px; }
+.auth-links { display: flex; justify-content: space-between; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
+.auth-links .button { padding-inline: 0; }
+.workspace-card > div { min-width: 0; }
+.restaurant-selector {
+  min-height: 32px;
+  font-size: 12px;
+  font-weight: 550;
+  padding-left: 0;
+  border-color: transparent;
+  background-color: transparent;
+  text-overflow: ellipsis;
+}
+.create-restaurant { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; padding: 8px 11px; min-height: 38px; border-radius: 8px; }
+.is-collapsed .create-restaurant span { display: none; }
+.welcome-page { min-height: 100dvh; background: var(--surface); padding: 32px 5%; }
+.welcome-page > header { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.welcome-layout { display: grid; grid-template-columns: 1.05fr 1fr; max-width: 1160px; margin: 64px auto; min-height: 590px; gap: 9%; align-items: center; }
+.welcome-story { background: var(--forest); color: #f5f8f1; border-radius: 16px; padding: 48px 40px; align-self: stretch; display: flex; flex-direction: column; align-items: flex-start; }
+.welcome-story > svg { margin-bottom: 56px; color: #c4d9c1; }
+.welcome-story h1 { font-size: 38px; line-height: 1.18; font-weight: 480; letter-spacing: -0.035em; }
+.welcome-story h1 span { color: #c4d9c1; }
+.welcome-story p { color: #c4d9c1; font-size: 14px; line-height: 1.75; max-width: 34ch; margin-top: 24px; }
+.welcome-signature { font-size: 12px; color: #c4d9c1; margin-top: auto; padding-top: 48px; }
+.welcome-form { min-width: 0; padding-block: 28px; }
+.welcome-form h2 { font-size: 28px; line-height: 1.2; color: var(--forest); margin-block: 20px 14px; }
+.welcome-form > p:not(.form-error) { color: var(--muted); line-height: 1.75; font-size: 14px; }
+.welcome-form > .account-email { font-size: 12px; overflow-wrap: anywhere; }
+.welcome-form form { margin-top: 32px; }
+.welcome-form .form-fields { gap: 22px; }
+.welcome-form .field > input { min-height: 46px; }
+.welcome-form .button-primary { min-height: 44px; }
+.welcome-hint { font-size: 12px; line-height: 1.7; color: var(--muted); margin: 20px 0; }
+.welcome-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; margin-top: 28px; }
+.welcome-form .form-error { margin-top: 20px; }
+.access-page { max-width: 1400px; }
+.access-guide { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 32px; color: var(--muted); max-width: 80ch; line-height: 1.8; }
+.access-guide svg { margin-top: 3px; color: var(--forest); }
+.access-guide strong { color: var(--forest); }
+.invite-panel { padding: 28px; border: 1px solid var(--border-strong); border-radius: 12px; margin-bottom: 32px; background: var(--surface); }
+.invite-panel h2 { font-size: 20px; margin-bottom: 8px; }
+.invite-panel p { color: var(--muted); max-width: 70ch; }
+.invite-panel form { margin-top: 24px; }
+.invite-panel .form-fields { align-items: flex-start; gap: 18px; }
+.invite-fields { display: grid; grid-template-columns: 220px minmax(0, 1fr); width: 100%; gap: 20px; }
+.invitation-result { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 14px; margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border); }
+.invitation-result > p { grid-column: 1 / -1; }
+.access-section { margin-block: 32px; }
+.access-section-title { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.access-section-title h2 > span { color: var(--muted); margin-left: 8px; font-size: 13px; }
+.access-loading { color: var(--muted); padding-block: 24px; }
+.access-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-block: 22px; border-bottom: 1px solid var(--border); }
+.access-person { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.access-person > svg { color: var(--muted); }
+.access-person > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.access-person strong { overflow-wrap: anywhere; }
+.access-person > div > span { font-size: 12px; color: var(--muted); }
+.access-controls { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+.access-controls select { width: 155px; }
+.access-controls .badge, .access-controls .button { min-width: 88px; justify-content: center; }
+.access-active { display: flex; gap: 8px; align-items: center; white-space: nowrap; font-size: 12px; min-height: 42px; cursor: pointer; }
+@media (hover: hover) and (pointer: fine) {
+  .create-restaurant:hover { color: var(--forest); background: var(--forest-soft); }
+  .restaurant-selector:hover { border-color: var(--border-strong); }
+}
+@media (max-width: 1100px) {
+  .access-row { flex-wrap: wrap; }
+  .access-controls { flex-wrap: wrap; }
+  .welcome-layout { gap: 6%; }
+  .welcome-story { padding: 36px 28px; }
+  .welcome-story h1 { font-size: 32px; }
+}
+@media (max-width: 800px) {
+  .welcome-page { padding: 22px 24px; }
+  .welcome-layout { display: block; max-width: 490px; margin: 40px auto; min-height: 0; }
+  .welcome-story { display: none; }
+  .welcome-form { padding-block: 16px; }
+  .welcome-form h2 { font-size: 28px; }
+  .invite-fields { grid-template-columns: 1fr; gap: 16px; }
+}
+@media (max-width: 580px) {
+  .auth-links { flex-direction: column; align-items: stretch; }
+  .auth-links .button { min-height: 44px; }
+  .welcome-page { padding-inline: 20px; }
+  .welcome-page > header .button { font-size: 11px; }
+  .welcome-form .field > input, .login-form input { font-size: 16px; }
+  .invite-panel { padding: 20px 16px; }
+  .invitation-result { grid-template-columns: 1fr; }
+  .access-row { gap: 14px; }
+  .access-controls { gap: 10px 14px; width: 100%; }
+  .access-controls select { flex: 1; min-width: 140px; }
+}

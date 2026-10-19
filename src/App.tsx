@@ -13,12 +13,14 @@ import {
   ShieldCheck,
   User,
 } from "lucide-react";
-import { Employee, Shift, ViewType } from "./types";
+import { CurrentUser, Employee, Shift, ViewType } from "./types";
 import { useWorkspace } from "./backend/useWorkspace";
-import { backendConfig } from "./backend/runtime";
+import { accountRepository, backendConfig } from "./backend/runtime";
 import { errorMessage } from "./backend/contracts";
 import LocalImport from "./components/LocalImport";
 import Login from "./components/Login";
+import RestaurantWelcome from "./components/RestaurantWelcome";
+import AccessManagement from "./components/AccessManagement";
 import { installMotionPolicy } from "./motion";
 import Sidebar, { navigation } from "./components/Sidebar";
 import Topbar from "./components/Topbar";
@@ -47,7 +49,22 @@ function App() {
   const workspace = useWorkspace();
   const employees = workspace.snapshot?.employees || [];
   const shifts = workspace.snapshot?.shifts || [];
-  const currentUser = employees.find(e => e.id === workspace.snapshot?.currentEmployeeId && e.active) || null;
+  const account = workspace.snapshot?.account;
+  const restaurantId = workspace.snapshot?.restaurantId;
+  const restaurants = workspace.snapshot?.restaurants || [];
+  const restaurant = restaurants.find(r => r.id === restaurantId);
+  const membershipRole = workspace.snapshot?.membershipRole;
+  const linkedEmployee = employees.find(e => e.id === workspace.snapshot?.currentEmployeeId && e.active);
+  const accountName = (account?.name || account?.email.split('@')[0] || '').trim().split(/\s+/);
+  const currentUser: CurrentUser | null = account
+    ? membershipRole && restaurantId ? {
+      id: linkedEmployee?.id || account.id, firstName: accountName[0], lastName: accountName.slice(1).join(' '),
+      email: account.email, department: linkedEmployee?.department || '',
+      position: membershipRole === 'owner' ? 'Propriétaire' : membershipRole === 'admin' ? 'Administrateur' : linkedEmployee?.position || 'Salarié',
+      role: membershipRole === 'employee' ? 'employee' : 'admin',
+    } : null
+    : linkedEmployee || null;
+  const [creatingRestaurant, setCreatingRestaurant] = useState(false);
   const [importing, setImporting] = useState(false);
   const [currentView, setCurrentView] = useState<ViewType>("planning");
   const [intent, setIntent] = useState<ViewIntent>({ nonce: 0 });
@@ -95,8 +112,13 @@ function App() {
   }, []);
   useEffect(() => {
     if (!currentUser) { setOverlay(null); setImporting(false); setMobileMenu(false); }
+    if (currentView === "access" && membershipRole !== "owner") setCurrentView("planning");
     if (currentUser?.role === "employee" && !["dashboard", "planning"].includes(currentView)) setCurrentView("planning");
-  }, [currentUser?.id, currentUser?.role, currentView]);
+  }, [currentUser?.id, currentUser?.role, currentView, membershipRole]);
+  useEffect(() => {
+    setOverlay(null); setImporting(false); setMobileMenu(false); setIntent({ nonce: Date.now() });
+    setCreatingRestaurant(false); setToast(null);
+  }, [restaurantId, account?.id]);
   useEffect(installMotionPolicy, []);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -132,7 +154,7 @@ function App() {
     const focusable = () =>
       Array.from(
         sidebar?.querySelectorAll<HTMLElement>(
-          'button:not(:disabled), a[href], input, [tabindex="0"]',
+          'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), [tabindex="0"]',
         ) || [],
       ).filter((el) => el.getClientRects().length);
     // Wait for the drawer's visibility transition to enter its visible state.
@@ -195,12 +217,25 @@ function App() {
         <p role={workspace.loading ? "status" : "alert"}>{backendConfig.mode === "error" ? backendConfig.message : workspace.loading ? "Nous vérifions votre connexion et chargeons vos données." : workspace.error}</p>
         {backendConfig.mode !== "error" && !workspace.loading && <div className="dialog-footer">
           <Button onClick={logout}>Changer de compte</Button>
+          {workspace.mode === "supabase" && <Button onClick={() => void workspace.selectRestaurant(null)}>Ouvrir un établissement disponible</Button>}
           <Button variant="primary" disabled={workspace.refreshing} onClick={() => void workspace.reload()}>Réessayer</Button>
         </div>}
         {toast && toast.message !== workspace.error && <p role="alert" className="form-error">{toast.message}</p>}
       </section>
     </main>;
-  if (!currentUser) return <Login mode={workspace.mode} onLogin={workspace.signIn} />;
+  if (workspace.recoveryRequested || (!account && !currentUser)) return <Login
+    mode={workspace.mode} onLogin={workspace.signIn} invited={!!workspace.invitation}
+    recovery={workspace.recovery && !!account} recoveryRequested={workspace.recoveryRequested}
+    onCancelRecovery={workspace.cancelRecovery} onRecover={workspace.finishRecovery}
+    onRegister={async (name, email, password) => !!await workspace.accountAction(() => accountRepository!.signUp(name, email, password), email)}
+  />;
+  if (account && (!restaurantId || workspace.invitation || creatingRestaurant)) return <RestaurantWelcome
+    account={account} invited={!!workspace.invitation} onAccept={workspace.acceptInvitation}
+    onDismiss={workspace.dismissInvitation} onLogout={logout}
+    onBack={restaurantId && !workspace.invitation ? () => setCreatingRestaurant(false) : undefined}
+    onCreate={async (id, name) => { await workspace.accountAction(() => accountRepository!.createRestaurant(id, name)); setCreatingRestaurant(false); }}
+  />;
+  if (!currentUser) return null;
   const isAdmin = currentUser.role === "admin";
   const todayShifts = shifts.filter(
     (s) =>
@@ -209,7 +244,7 @@ function App() {
   );
   const routes = navigation.filter(
     (n) =>
-      (isAdmin || ["dashboard", "planning"].includes(n.id)) &&
+      (n.id === "access" ? membershipRole === "owner" : isAdmin || ["dashboard", "planning"].includes(n.id)) &&
       n.label.toLocaleLowerCase("fr").includes(query.toLocaleLowerCase("fr")),
   );
   const people = isAdmin
@@ -235,6 +270,10 @@ function App() {
       )}
       <Sidebar
         mode={workspace.mode}
+        restaurant={restaurant} restaurants={restaurants} owner={membershipRole === "owner"}
+        onSelectRestaurant={id => void workspace.selectRestaurant(id)}
+        onCreateRestaurant={() => { setCreatingRestaurant(true); setMobileMenu(false); }}
+        disabled={workspace.saving}
         currentView={currentView}
         onNavigate={(view, department) => navigate(view, { department })}
         currentUser={currentUser}
@@ -280,8 +319,12 @@ function App() {
           className="app-main"
           id="main-content"
           tabIndex={-1}
-          key={currentView}
+          key={`${restaurantId || "demo"}:${currentView}`}
         >
+          {currentView === "access" && membershipRole === "owner" && account && restaurant && <AccessManagement
+            restaurant={restaurant} accountId={account.id} employees={employees}
+            onChange={workspace.accountAction} notify={notify} onAddEmployee={() => navigate("employees", { action: "create" })}
+          />}
           {currentView === "dashboard" && (
             <Dashboard
               employees={employees}
@@ -405,7 +448,7 @@ function App() {
               <h3>{personName(currentUser)}</h3>
               <p>{currentUser.email}</p>
               <Badge tone="sage">
-                {isAdmin ? "Administrateur" : "Membre de l’équipe"}
+                {membershipRole === "owner" ? "Propriétaire" : isAdmin ? "Administrateur" : "Membre de l’équipe"}
               </Badge>
             </div>
           </div>

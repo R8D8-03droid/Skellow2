@@ -8,27 +8,28 @@ web
 
 ## Product Purpose
 
-Skellow manages nightclub staffing: weekly shifts, employee records, and payroll preparation. This description is inferred from the existing application and its demonstration data; no new product claims are introduced.
+Skellow aide les restaurateurs à organiser l’équipe, les services et la préparation de paie. Les anciennes données de démonstration restent des exemples locaux ; elles ne définissent pas le secteur ou les données d’un véritable établissement.
 
 ## Users
 
-Existing roles: administrators manage employees, shifts and pay preparation; employees consult their own planning and overview.
+Un compte confirmé peut créer un ou plusieurs établissements ou en rejoindre un par invitation. Le propriétaire gère les accès. Les administrateurs gèrent les fiches salariés, le planning et la préparation de paie. Les salariés consultent leur propre fiche et leurs propres services.
 
 ## Capabilities and Constraints
 
-React, TypeScript, Vite. A configurable Supabase mode provides Auth accounts, shared employee/shift records, database-enforced admin/employee access, revision-checked writes and explicit local-data import. It models one establishment per Supabase project; a hosted project still needs to be configured following BACKEND.md. Without configuration, the existing localStorage demonstration remains available with its original data keys. Preserve payroll calculation rules: payroll remains a browser estimate, not a certified payslip service. Demonstration records are supplied in src/data.ts. No external messaging, invitations or realtime synchronization is implemented.
+React, TypeScript et Vite. Le mode Supabase utilise Auth et PostgreSQL, des appartenances propres à chaque établissement, des politiques d’accès en base, des écritures avec révision et un import explicite des données locales. Les fiches salariés et les comptes de connexion sont distincts. Une invitation d’accès est liée à une adresse e-mail confirmée ; son lien est partagé manuellement par le propriétaire et expire après sept jours. La connexion Google n’est proposée que si son fournisseur est activé dans Supabase. Sans configuration, la démonstration locale demeure disponible. La paie reste une estimation côté navigateur, sans bulletin certifié, envoi automatique ou synchronisation temps réel.
 
 ## Brand Commitments
 
-User requested a complete premium redesign, following two supplied light dashboard references, with clear working controls, restrained liquid glass and expressive purposeful motion. Visual implementation is delegated to the agent. Keep Skellow and French interface copy.
+L’utilisateur a demandé un design premium, clair et animé, inspiré par deux références visuelles, avec des commandes utilisables, un effet liquid glass mesuré et une interface française. Préserver la lisibilité, l’accessibilité et la réduction des animations à la demande.
 
 ## Evidence on Hand
 
-Baseline: fe9dc55. References: .context/attachments/33eVuZ/réf sky2.jpg and .context/attachments/qFPsW2/réf sky.jpg (actual filesystem filenames use decomposed accents). Existing source code is authority for functionality and records.
+Références : `.context/attachments/33eVuZ/réf sky2.jpg` et `.context/attachments/qFPsW2/réf sky.jpg` (noms réels avec accents décomposés). Le code et les migrations du dépôt font autorité pour le comportement.
 
 ## Product Principles
 
-- Make the working week readable at a glance.
-- Every visible command performs a clear action.
-- Preserve user data and communicate real state.
-- Work with keyboard, mobile touch and reduced motion.
+- Lire la semaine de travail d’un coup d’œil.
+- Faire correspondre chaque commande visible à une action claire.
+- Préserver les données et annoncer l’état réel d’une opération.
+- Garder les établissements et leurs droits indépendants.
+- Fonctionner au clavier, au toucher et avec des animations réduites.

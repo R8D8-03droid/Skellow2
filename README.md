@@ -1,6 +1,6 @@
 # Skellow
 
-Planning d’équipe, fiches salariés et préparation de paie. Interface française en React, TypeScript et Vite.
+Skellow aide les restaurateurs à organiser les plannings, les fiches salariés et la préparation de paie. L’interface est en français, avec React, TypeScript et Vite.
 
 ## Démarrer
 
@@ -9,11 +9,9 @@ npm ci
 npm run dev -- --port 3100
 ```
 
-Sans configuration, l’application utilise la démonstration locale. Les accès de démonstration sont proposés sur l’écran de connexion ; les données restent dans ce navigateur.
+Sans configuration, l’application ouvre une démonstration locale dont les données restent dans le navigateur. Le mode connecté repose sur Supabase Auth et PostgreSQL : un compte confirmé peut créer un établissement, rejoindre un établissement par invitation et changer entre ses établissements accessibles. Le propriétaire gère les accès ; les administrateurs gèrent l’équipe et les services ; les salariés voient leur fiche et leur planning. Les droits sont vérifiés en base pour chaque établissement.
 
-Le mode connecté utilise Supabase Auth et PostgreSQL pour partager les données et appliquer les droits administrateur/employé en base. Il nécessite un projet Supabase, la migration fournie et un premier compte administrateur. Suivre [BACKEND.md](BACKEND.md) avant de remplir `.env.local` à partir de `.env.example`.
-
-La publication sur [GitHub Pages](https://r8d8-03droid.github.io/Skellow2/) est automatique après un push sur `main` et la réussite des tests. Le fonctionnement et les variables d’activation du backend sont décrits dans [DEPLOYMENT.md](DEPLOYMENT.md).
+Pour préparer le backend, lire [BACKEND.md](BACKEND.md), puis renseigner `.env.local` depuis `.env.example`. Le site [GitHub Pages](https://r8d8-03droid.github.io/Skellow2/) est reconstruit automatiquement après les vérifications d’un push sur `main`. Son mode de données publié est contrôlé séparément : voir [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## Vérifier
 
@@ -25,6 +23,6 @@ npx playwright install chromium
 npm run test:browser
 ```
 
-Les tests de base utilisent PostgreSQL embarqué avec PGlite ; les tests navigateur utilisent le SDK Supabase avec des réponses HTTP simulées. Ils ne nécessitent aucun compte distant et ne constituent pas un test d’intégration sur un projet Supabase hébergé.
+Les tests SQL locaux utilisent PGlite ; les tests navigateur interceptent les réponses HTTP du SDK Supabase. La [recette SQL hébergée](supabase/tests/hosted-smoke.sql) contrôle en plus le projet distant dans une transaction annulée à la fin. Ces contrôles ne remplacent pas un cycle réel d’inscription et de connexion avant le passage du site publié en mode connecté.
 
-La préparation de paie reste un calcul estimatif exécuté dans le navigateur. Le détail du périmètre, de l’import local et de l’activation des accès figure dans [BACKEND.md](BACKEND.md).
+La préparation de paie est une estimation calculée dans le navigateur, pas un bulletin certifié. L’import des anciennes données locales est volontaire et limité à l’établissement sélectionné.

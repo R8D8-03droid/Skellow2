@@ -14,8 +14,8 @@ major_version = 17
 [auth]
 enabled = true
 site_url = "http://localhost:3100"
-enable_signup = false
+enable_signup = true
 
 [auth.email]
-enable_signup = false
+enable_signup = true
 enable_confirmations = true

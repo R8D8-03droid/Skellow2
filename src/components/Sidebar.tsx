@@ -10,8 +10,11 @@ import {
   LogOut,
   PanelLeftClose,
   ArrowUpRight,
+  KeyRound,
+  Plus,
 } from "lucide-react";
-import { Employee, ViewType } from "../types";
+import { CurrentUser, Employee, ViewType } from "../types";
+import type { Restaurant } from "../backend/account";
 import { Avatar, Brand, IconButton, toneFor } from "./ui";
 export const navigation = [
   {
@@ -22,13 +25,20 @@ export const navigation = [
   { id: "planning" as ViewType, label: "Planning", icon: CalendarDays },
   { id: "employees" as ViewType, label: "Équipe", icon: Users },
   { id: "payslips" as ViewType, label: "Préparation de paie", icon: FileText },
+  { id: "access" as ViewType, label: "Accès", icon: KeyRound },
 ];
 interface Props {
   mode: "demo" | "supabase";
+  restaurant?: Restaurant;
+  restaurants: Restaurant[];
+  owner: boolean;
+  onSelectRestaurant: (id: string) => void;
+  onCreateRestaurant: () => void;
+  disabled: boolean;
   mobileOpen: boolean;
   currentView: ViewType;
   onNavigate: (view: ViewType, department?: string) => void;
-  currentUser: Employee;
+  currentUser: CurrentUser;
   employees: Employee[];
   onLogout: () => void;
   onSearch: () => void;
@@ -38,7 +48,7 @@ interface Props {
   collapsed: boolean;
 }
 export default function Sidebar({
-  mode,
+  mode, restaurant, restaurants, owner, onSelectRestaurant, onCreateRestaurant, disabled,
   mobileOpen,
   currentView,
   onNavigate,
@@ -69,13 +79,13 @@ export default function Sidebar({
         </IconButton>
       </div>
       <div className="workspace-card">
-        <span className="workspace-symbol">N</span>
+        <span className="workspace-symbol">{restaurant?.name.slice(0, 1).toUpperCase() || "N"}</span>
         <div>
-          <strong>Night Club</strong>
-          <span>Espace de travail</span>
+          {mode === "supabase" ? <><label className="sr-only" htmlFor="restaurant-selector">Établissement</label><select id="restaurant-selector" className="restaurant-selector" value={restaurant?.id || ''} disabled={disabled} onChange={e => onSelectRestaurant(e.target.value)}>{restaurants.map(r => <option value={r.id} key={r.id}>{r.name}</option>)}</select><span>Votre établissement</span></> : <><strong>Night Club</strong><span>Espace de démonstration</span></>}
         </div>
         <span className="workspace-status" title={mode === "supabase" ? "Espace partagé" : "Démo locale"} />
       </div>
+      {mode === "supabase" && <button className="create-restaurant" disabled={disabled} onClick={onCreateRestaurant} title="Ajouter un établissement"><Plus size={14}/><span>Ajouter un établissement</span></button>}
       <button className="sidebar-search" onClick={onSearch}>
         <Search size={16} />
         <span>Rechercher</span>
@@ -94,7 +104,7 @@ export default function Sidebar({
           {navigation
             .filter(
               (n) =>
-                currentUser.role === "admin" ||
+                n.id === "access" ? owner : currentUser.role === "admin" ||
                 ["dashboard", "planning"].includes(n.id),
             )
             .map((item) => (

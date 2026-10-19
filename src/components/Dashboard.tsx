@@ -10,7 +10,7 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
-import { Employee, Shift, ViewType } from "../types";
+import { CurrentUser, Employee, Shift, ViewType } from "../types";
 import type { ViewIntent } from "../App";
 import {
   Avatar,
@@ -28,7 +28,7 @@ import {
 interface Props {
   employees: Employee[];
   shifts: Shift[];
-  currentUser: Employee;
+  currentUser: CurrentUser;
   onNavigate: (view: ViewType, intent?: Omit<ViewIntent, "nonce">) => void;
 }
 export default function Dashboard({

@@ -15,7 +15,7 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
-import { Employee, Shift } from "../types";
+import { CurrentUser, Employee, Shift } from "../types";
 import type { ViewIntent } from "../App";
 import { generateId } from "../data";
 import { useAsyncAction } from "../backend/useAsyncAction";
@@ -42,7 +42,7 @@ import { DayTimeline } from "./Planning";
 interface Props {
   employees: Employee[];
   shifts: Shift[];
-  currentUser: Employee;
+  currentUser: CurrentUser;
   mode: "demo" | "supabase";
   onSaveEmployee: (employee: Employee, demoPassword?: string) => Promise<void>;
   onDeleteEmployee: (employee: Employee) => Promise<void>;
@@ -450,7 +450,7 @@ function EmployeeEditor({
   employee: Employee | null;
   employees: Employee[];
   shifts: Shift[];
-  currentUser: Employee;
+  currentUser: CurrentUser;
   mode: "demo" | "supabase";
   onSave: (employee: Employee, demoPassword?: string) => Promise<void>;
   onClose: () => void;
@@ -738,8 +738,8 @@ function EmployeeEditor({
                 />
               </label> : <p className="info-note">{employee?.accessLinked
                 ? "Compte de connexion lié à cette fiche."
-                : "Accès non activé. Le gestionnaire des accès doit associer un compte à cette fiche."}</p>}
-              <label className="field">
+                : "Pour activer son compte, le propriétaire crée un lien d’invitation dans Accès."}</p>}
+              {mode === "demo" && <label className="field">
                 Rôle
                 <select
                   value={form.role}
@@ -749,7 +749,7 @@ function EmployeeEditor({
                   <option value="employee">Employé</option>
                   <option value="admin">Administrateur</option>
                 </select>
-              </label>
+              </label>}
             </div>
           </details>
           {employee && !self && (

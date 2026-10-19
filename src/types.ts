@@ -56,4 +56,6 @@ export interface PaySlip {
   generatedAt: string;
 }
 
-export type ViewType = 'planning' | 'employees' | 'payslips' | 'dashboard';
+export type ViewType = 'planning' | 'employees' | 'payslips' | 'dashboard' | 'access';
+
+export type CurrentUser = Pick<Employee, "id" | "firstName" | "lastName" | "email" | "position" | "department" | "role">;

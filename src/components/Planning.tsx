@@ -43,7 +43,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { Employee, Shift } from "../types";
+import { CurrentUser, Employee, Shift } from "../types";
 import type { ViewIntent } from "../App";
 import { useContentTransition, useTimelineReveal } from "../motion";
 import { generateId } from "../data";
@@ -74,7 +74,7 @@ import {
 interface Props {
   employees: Employee[];
   shifts: Shift[];
-  currentUser: Employee;
+  currentUser: CurrentUser;
   onSaveShifts: (shifts: Shift[]) => Promise<void>;
   onDeleteShift: (shift: Shift) => Promise<void>;
   notify: (message: string, tone?: "success" | "error") => void;

@@ -1,138 +1,234 @@
--- Run as postgres only on an empty Skellow database. All fixtures are rolled back.
--- No passwords, persistent accounts, or employee data are created.
--- With psql, require -v ON_ERROR_STOP=1. In SQL Editor, execute the whole file.
--- Success is reported inside the test transaction; cleanup counts are separate.
+-- Run the whole file as postgres after both migrations. All synthetic data is
+-- created inside this transaction and rolled back, even on an occupied project.
+-- With psql, use -v ON_ERROR_STOP=1. Never replace ROLLBACK with COMMIT.
 begin;
 set local statement_timeout = '30s';
 
-do $qa$ begin if not ((select count(*)=0 from public.employees) and (select count(*)=0 from public.shifts) and (select count(*)=0 from auth.users) and (select count(*)=0 from private.mutation_receipts)) then raise exception 'FAILED: empty database precondition'; end if; end $qa$;
+do $qa$ begin
+  if to_regprocedure('public.create_restaurant(uuid,text)') is null
+    or to_regprocedure('public.workspace_snapshot(uuid)') is null
+    or to_regprocedure('public.apply_workspace_changes(uuid,uuid,jsonb,jsonb)') is null
+    or to_regprocedure('public.accept_invitation(text)') is null then
+    raise exception 'SaaS migration is required before this recipe';
+  end if;
+end $qa$;
 
-insert into auth.users(id,email,email_confirmed_at,raw_user_meta_data) values ('10000000-0000-4000-8000-000000000001','qa-admin@example.com',now(),'{"role":"admin"}'::jsonb),('10000000-0000-4000-8000-000000000002','qa-member@example.com',now(),'{"role":"admin"}'::jsonb),('10000000-0000-4000-8000-000000000003','qa-stranger@example.com',now(),'{"role":"admin"}'::jsonb);
-select private.bootstrap_admin('10000000-0000-4000-8000-000000000001','QA','Admin');
+-- Fresh UUIDs and reserved example.invalid addresses avoid touching real users.
+select set_config('qa.owner',gen_random_uuid()::text,true);
+select set_config('qa.staff',gen_random_uuid()::text,true);
+select set_config('qa.outsider',gen_random_uuid()::text,true);
+select set_config('qa.unconfirmed',gen_random_uuid()::text,true);
+select set_config('qa.venue_a',gen_random_uuid()::text,true);
+select set_config('qa.venue_b',gen_random_uuid()::text,true);
+select set_config('qa.staff_email','qa-' || current_setting('qa.staff') || '@example.invalid',true);
+select set_config('qa.token_a',md5(gen_random_uuid()::text) || md5(gen_random_uuid()::text),true);
+select set_config('qa.token_b',md5(gen_random_uuid()::text) || md5(gen_random_uuid()::text),true);
+select set_config('qa.write_a',gen_random_uuid()::text,true);
+select set_config('qa.write_b',gen_random_uuid()::text,true);
 
-reset role;
+insert into auth.users(id,email,email_confirmed_at,raw_user_meta_data) values
+  (current_setting('qa.owner')::uuid,'qa-' || current_setting('qa.owner') || '@example.invalid',now(),'{}'),
+  (current_setting('qa.staff')::uuid,current_setting('qa.staff_email'),now(),'{}'),
+  (current_setting('qa.outsider')::uuid,'qa-' || current_setting('qa.outsider') || '@example.invalid',now(),'{"role":"owner"}'),
+  (current_setting('qa.unconfirmed')::uuid,'qa-' || current_setting('qa.unconfirmed') || '@example.invalid',null,'{"role":"owner"}');
+
+select set_config('qa.employee_change',jsonb_build_array(jsonb_build_object(
+  'kind','save','expected_revision',null,'data',jsonb_build_object(
+    'id','qa-staff','first_name','Test','last_name','Recette',
+    'email',current_setting('qa.staff_email'),'phone','','position','Service',
+    'department','Salle','contract_type','CDI','start_date','2026-10-19',
+    'end_date',null,'hourly_rate',15,'monthly_hours',151.67,
+    'social_security_number','','address','','postal_code','','city','','bank_rib','',
+    'role','employee','active',true,'night_work',false
+  )
+))::text,true);
+select set_config('qa.shift_change',jsonb_build_array(jsonb_build_object(
+  'kind','save','expected_revision',null,'data',jsonb_build_object(
+    'id','qa-service','employee_id','qa-staff','date','2026-10-20',
+    'start_time','18:00','end_time','23:00','role','Service',
+    'notes','','is_night_shift',false,'status','scheduled'
+  )
+))::text,true);
+
 set local role anon;
 select set_config('request.jwt.claim.sub','',true);
-
-do $qa$ begin begin perform 1 from public.employees; raise exception 'FAILED: anonymous table read denied'; exception when sqlstate '42501' then null; end; end $qa$;
-
-do $qa$ begin begin perform public.workspace_snapshot(); raise exception 'FAILED: anonymous RPC denied'; exception when sqlstate '42501' then null; end; end $qa$;
-
-reset role;
-set local role authenticated;
-select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000003',true);
-
-do $qa$ begin if not ((select count(*)=0 from public.employees) and (select count(*)=0 from public.shifts)) then raise exception 'FAILED: unlinked user RLS hides all data'; end if; end $qa$;
-
-do $qa$ begin begin perform public.workspace_snapshot(); raise exception 'FAILED: spoofed metadata does not grant access'; exception when sqlstate '42501' then null; end; end $qa$;
-
-do $qa$ begin begin perform public.apply_workspace_changes('20000000-0000-4000-8000-000000000001','[{"kind":"save","data":{"id":"qa-forbidden","first_name":"Test","last_name":"qa-forbidden","email":"qa-forbidden@example.com","phone":"","position":"DJ","department":"Animation","contract_type":"CDI","start_date":"2026-01-01","end_date":null,"hourly_rate":20,"monthly_hours":151.67,"social_security_number":"","address":"","postal_code":"","city":"","bank_rib":"","role":"employee","active":true,"night_work":true},"expected_revision":null}]'::jsonb,'[]'::jsonb); raise exception 'FAILED: unlinked user mutation denied'; exception when sqlstate '42501' then null; end; end $qa$;
+do $qa$ begin
+  begin perform 1 from public.employees; raise exception 'anonymous employee read was allowed';
+  exception when sqlstate '42501' then null; end;
+  begin perform public.workspace_snapshot(null); raise exception 'anonymous snapshot was allowed';
+  exception when sqlstate '42501' then null; end;
+end $qa$;
 
 reset role;
 set local role authenticated;
-select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000001',true);
-
-select public.apply_workspace_changes('20000000-0000-4000-8000-000000000002','[{"kind":"save","data":{"id":"qa-member","first_name":"Test","last_name":"qa-member","email":"qa-member@example.com","phone":"","position":"DJ","department":"Animation","contract_type":"CDI","start_date":"2026-01-01","end_date":null,"hourly_rate":20,"monthly_hours":151.67,"social_security_number":"","address":"","postal_code":"","city":"","bank_rib":"","role":"employee","active":true,"night_work":true},"expected_revision":null},{"kind":"save","data":{"id":"qa-other","first_name":"Test","last_name":"qa-other","email":"qa-other@example.com","phone":"","position":"DJ","department":"Animation","contract_type":"CDI","start_date":"2026-01-01","end_date":null,"hourly_rate":20,"monthly_hours":151.67,"social_security_number":"","address":"","postal_code":"","city":"","bank_rib":"","role":"employee","active":true,"night_work":true},"expected_revision":null}]'::jsonb,'[]'::jsonb);
-
-do $qa$ begin if not ((select jsonb_array_length(public.workspace_snapshot()->'employees')=3)) then raise exception 'FAILED: admin creates and sees three employees'; end if; end $qa$;
-
-do $qa$ begin if not (not exists(select 1 from jsonb_array_elements(public.workspace_snapshot()->'employees') e where e ? 'auth_user_id' or e ? 'password')) then raise exception 'FAILED: snapshot hides auth identities'; end if; end $qa$;
-
-do $qa$ begin begin update public.employees set role='admin' where id='qa-member'; raise exception 'FAILED: direct table updates denied'; exception when sqlstate '42501' then null; end; end $qa$;
-
-do $qa$ begin begin perform 1 from private.mutation_receipts; raise exception 'FAILED: private receipts unreadable'; exception when sqlstate '42501' then null; end; end $qa$;
-
-do $qa$ begin begin perform private.bootstrap_admin('10000000-0000-4000-8000-000000000003','Other','Admin'); raise exception 'FAILED: bootstrap unavailable to app'; exception when sqlstate '42501' then null; end; end $qa$;
-
-do $qa$ begin begin perform public.apply_workspace_changes('20000000-0000-4000-8000-000000000003','[{"kind":"save","data":{"id":"qa-bad","first_name":"Test","last_name":"qa-bad","email":"qa-bad@example.com","phone":"","position":"DJ","department":"Animation","contract_type":"CDI","start_date":"2026-01-01","end_date":null,"hourly_rate":20,"monthly_hours":151.67,"social_security_number":"","address":"","postal_code":"","city":"","bank_rib":"","role":"employee","active":true,"night_work":true,"auth_user_id":"10000000-0000-4000-8000-000000000003"},"expected_revision":null}]'::jsonb,'[]'::jsonb); raise exception 'FAILED: protected identity fields rejected'; exception when sqlstate '22023' then null; end; end $qa$;
-
-reset role;
-select private.link_employee_account('qa-member','10000000-0000-4000-8000-000000000002');
+select set_config('request.jwt.claim.sub',current_setting('qa.unconfirmed'),true);
+do $qa$ begin
+  begin perform public.workspace_snapshot(null); raise exception 'unconfirmed account got a snapshot';
+  exception when sqlstate '42501' then null; end;
+  begin perform public.create_restaurant(gen_random_uuid(),'QA interdit');
+    raise exception 'unconfirmed account created a restaurant';
+  exception when sqlstate '42501' then null; end;
+end $qa$;
 
 reset role;
 set local role authenticated;
-select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000001',true);
-
-select public.apply_workspace_changes('20000000-0000-4000-8000-000000000004','[]'::jsonb,'[{"kind":"save","data":{"id":"qa-night","employee_id":"qa-member","date":"2026-10-12","start_time":"22:00","end_time":"05:00","role":"DJ","notes":"","is_night_shift":true,"status":"scheduled"},"expected_revision":null},{"kind":"save","data":{"id":"qa-other-night","employee_id":"qa-other","date":"2026-10-12","start_time":"22:00","end_time":"05:00","role":"DJ","notes":"","is_night_shift":true,"status":"scheduled"},"expected_revision":null}]'::jsonb);
-
-reset role;
-set local role authenticated;
-select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000002',true);
-
-do $qa$ begin if not ((select jsonb_array_length(s->'employees')=1 and s->'employees'->0->>'id'='qa-member' and jsonb_array_length(s->'shifts')=1 and s->'shifts'->0->>'id'='qa-night' from (select public.workspace_snapshot() s) x)) then raise exception 'FAILED: employee snapshot contains only own data'; end if; end $qa$;
-
-do $qa$ begin if not ((select count(*)=1 and min(id)='qa-night' from public.shifts)) then raise exception 'FAILED: direct RLS reads filter shifts'; end if; end $qa$;
-
-do $qa$ begin begin perform public.apply_workspace_changes('20000000-0000-4000-8000-000000000005','[]'::jsonb,'[{"kind":"save","data":{"id":"qa-forbidden","employee_id":"qa-member","date":"2026-10-12","start_time":"22:00","end_time":"05:00","role":"DJ","notes":"","is_night_shift":true,"status":"scheduled"},"expected_revision":null}]'::jsonb); raise exception 'FAILED: employee mutation denied'; exception when sqlstate '42501' then null; end; end $qa$;
-
-do $qa$ begin begin perform private.link_employee_account('qa-member','10000000-0000-4000-8000-000000000003'); raise exception 'FAILED: employee cannot link accounts'; exception when sqlstate '42501' then null; end; end $qa$;
+select set_config('request.jwt.claim.sub',current_setting('qa.outsider'),true);
+do $qa$ begin
+  if (public.workspace_snapshot(null)->'restaurants') <> '[]'::jsonb
+    or (select count(*) from public.employees) <> 0 then
+    raise exception 'unlinked account can see existing restaurant data';
+  end if;
+end $qa$;
+select public.create_restaurant(current_setting('qa.venue_b')::uuid,'QA Restaurant B');
 
 reset role;
 set local role authenticated;
-select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000001',true);
+select set_config('request.jwt.claim.sub',current_setting('qa.owner'),true);
+select public.create_restaurant(current_setting('qa.venue_a')::uuid,'QA Restaurant A');
+select public.create_restaurant(current_setting('qa.venue_a')::uuid,'QA Restaurant A');
+do $qa$ begin
+  if (public.workspace_snapshot(current_setting('qa.venue_a')::uuid)->>'membership_role') <> 'owner' then
+    raise exception 'creator did not become owner';
+  end if;
+  begin perform public.workspace_snapshot(current_setting('qa.venue_b')::uuid);
+    raise exception 'owner read another restaurant';
+  exception when sqlstate '42501' then null; end;
+  begin perform public.apply_workspace_changes(gen_random_uuid(),current_setting('qa.venue_b')::uuid,'[]','[]');
+    raise exception 'owner wrote to another restaurant';
+  exception when sqlstate '42501' then null; end;
+end $qa$;
 
-do $qa$ begin begin perform public.apply_workspace_changes('20000000-0000-4000-8000-000000000006','[]'::jsonb,'[{"kind":"save","data":{"id":"qa-overlap","employee_id":"qa-member","date":"2026-10-13","start_time":"04:00","end_time":"06:00","role":"DJ","notes":"","is_night_shift":true,"status":"scheduled"},"expected_revision":null}]'::jsonb); raise exception 'FAILED: overnight overlap rejected'; exception when sqlstate '23P01' then null; end; end $qa$;
+select public.apply_workspace_changes(current_setting('qa.write_a')::uuid,current_setting('qa.venue_a')::uuid,current_setting('qa.employee_change')::jsonb,'[]');
+select public.apply_workspace_changes(current_setting('qa.write_a')::uuid,current_setting('qa.venue_a')::uuid,current_setting('qa.employee_change')::jsonb,'[]');
+select public.apply_workspace_changes(current_setting('qa.write_b')::uuid,current_setting('qa.venue_a')::uuid,'[]',current_setting('qa.shift_change')::jsonb);
+do $qa$ begin
+  if (select count(*) from public.employees where restaurant_id=current_setting('qa.venue_a')::uuid) <> 1
+    or (select count(*) from public.shifts where restaurant_id=current_setting('qa.venue_a')::uuid) <> 1
+    or (select revision from public.employees where restaurant_id=current_setting('qa.venue_a')::uuid and id='qa-staff') <> 1 then
+    raise exception 'writes or idempotent retry did not produce one employee and shift';
+  end if;
+  if (select count(*) from public.employees) <> 1 then
+    raise exception 'RLS exposed employees in other restaurants';
+  end if;
+  begin update public.employees set role='admin' where restaurant_id=current_setting('qa.venue_a')::uuid;
+    raise exception 'direct employee update was allowed';
+  exception when sqlstate '42501' then null; end;
+  begin perform 1 from private.mutation_receipts; raise exception 'private receipts were readable';
+  exception when sqlstate '42501' then null; end;
+  begin perform public.update_member_access(current_setting('qa.venue_a')::uuid,current_setting('qa.owner')::uuid,'admin',true,1);
+    raise exception 'last owner was demoted';
+  exception when sqlstate '42501' then null; end;
+end $qa$;
 
-do $qa$ begin begin perform public.apply_workspace_changes('20000000-0000-4000-8000-000000000007','[]'::jsonb,'[{"kind":"save","data":{"id":"qa-zero","employee_id":"qa-member","date":"2026-10-14","start_time":"22:00","end_time":"22:00","role":"DJ","notes":"","is_night_shift":true,"status":"scheduled"},"expected_revision":null}]'::jsonb); raise exception 'FAILED: zero duration rejected'; exception when sqlstate '23514' then null; end; end $qa$;
-
-select public.apply_workspace_changes('20000000-0000-4000-8000-000000000008','[]'::jsonb,'[{"kind":"save","data":{"id":"qa-touch","employee_id":"qa-member","date":"2026-10-13","start_time":"05:00","end_time":"06:00","role":"DJ","notes":"","is_night_shift":true,"status":"scheduled"},"expected_revision":null}]'::jsonb);
-
-do $qa$ begin if not ((select count(*)=1 from public.shifts where id='qa-touch')) then raise exception 'FAILED: touching endpoints allowed'; end if; end $qa$;
-
-do $qa$ begin begin perform public.apply_workspace_changes('20000000-0000-4000-9000-000000000001','[{"kind":"save","data":{"id":"qa-rollback","first_name":"Test","last_name":"qa-rollback","email":"qa-rollback@example.com","phone":"","position":"DJ","department":"Animation","contract_type":"CDI","start_date":"2026-01-01","end_date":null,"hourly_rate":20,"monthly_hours":151.67,"social_security_number":"","address":"","postal_code":"","city":"","bank_rib":"","role":"employee","active":true,"night_work":true},"expected_revision":null}]'::jsonb,'[{"kind":"save","data":{"id":"qa-batch-ok","employee_id":"qa-member","date":"2026-11-01","start_time":"22:00","end_time":"05:00","role":"DJ","notes":"","is_night_shift":true,"status":"scheduled"},"expected_revision":null},{"kind":"save","data":{"id":"qa-batch-conflict","employee_id":"qa-member","date":"2026-10-12","start_time":"22:00","end_time":"05:00","role":"DJ","notes":"","is_night_shift":true,"status":"scheduled"},"expected_revision":null}]'::jsonb); raise exception 'FAILED: failed batch rejected'; exception when sqlstate '23P01' then null; end; end $qa$;
-
-do $qa$ begin if not ((select count(*)=0 from public.employees where id='qa-rollback') and (select count(*)=0 from public.shifts where id='qa-batch-ok')) then raise exception 'FAILED: failed batch leaves no partial rows'; end if; end $qa$;
-
-reset role;
-
-do $qa$ begin if not ((select count(*)=0 from private.mutation_receipts where request_id='20000000-0000-4000-9000-000000000001')) then raise exception 'FAILED: failed batch leaves no receipt'; end if; end $qa$;
+do $qa$ begin
+  begin perform public.create_invitation(current_setting('qa.venue_a')::uuid,
+    current_setting('qa.staff_email'),'admin','qa-staff',md5(gen_random_uuid()::text) || md5(gen_random_uuid()::text));
+    raise exception 'admin invitation was linked to a staff record';
+  exception when sqlstate '22023' then null; end;
+end $qa$;
+select set_config('qa.invitation_a',public.create_invitation(
+  current_setting('qa.venue_a')::uuid,current_setting('qa.staff_email'),'employee','qa-staff',current_setting('qa.token_a')
+)::text,true);
+do $qa$ begin
+  if public.create_invitation(current_setting('qa.venue_a')::uuid,current_setting('qa.staff_email'),'employee','qa-staff',current_setting('qa.token_a'))::text
+      <> current_setting('qa.invitation_a') then
+    raise exception 'invitation retry produced a second row';
+  end if;
+  if (public.restaurant_access(current_setting('qa.venue_a')::uuid)::text like '%' || current_setting('qa.token_a') || '%')
+    or (public.restaurant_access(current_setting('qa.venue_a')::uuid)::text like '%token_hash%') then
+    raise exception 'invitation secret appeared in access listing';
+  end if;
+end $qa$;
 
 reset role;
 set local role authenticated;
-select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000001',true);
-
-select public.apply_workspace_changes('20000000-0000-4000-8000-000000000009','[]'::jsonb,'[{"kind":"save","data":{"id":"qa-night","employee_id":"qa-member","date":"2026-10-12","start_time":"22:00","end_time":"05:00","role":"DJ","notes":"Saved once","is_night_shift":true,"status":"scheduled"},"expected_revision":1}]'::jsonb);
-
-do $qa$ begin begin perform public.apply_workspace_changes('20000000-0000-4000-8000-000000000010','[]'::jsonb,'[{"kind":"save","data":{"id":"qa-night","employee_id":"qa-member","date":"2026-10-12","start_time":"22:00","end_time":"05:00","role":"DJ","notes":"Stale","is_night_shift":true,"status":"scheduled"},"expected_revision":1}]'::jsonb); raise exception 'FAILED: stale revision rejected'; exception when sqlstate '40001' then null; end; end $qa$;
-
-do $qa$ begin if not ((select revision=2 and notes='Saved once' from public.shifts where id='qa-night')) then raise exception 'FAILED: stale edit preserves current version'; end if; end $qa$;
-
-select public.apply_workspace_changes('20000000-0000-4000-9000-000000000002','[{"kind":"save","data":{"id":"qa-retry","first_name":"Test","last_name":"qa-retry","email":"qa-retry@example.com","phone":"","position":"DJ","department":"Animation","contract_type":"CDI","start_date":"2026-01-01","end_date":null,"hourly_rate":20,"monthly_hours":151.67,"social_security_number":"","address":"","postal_code":"","city":"","bank_rib":"","role":"employee","active":true,"night_work":true},"expected_revision":null}]'::jsonb,'[]'::jsonb);
-select public.apply_workspace_changes('20000000-0000-4000-9000-000000000002','[{"kind":"save","data":{"id":"qa-retry","first_name":"Test","last_name":"qa-retry","email":"qa-retry@example.com","phone":"","position":"DJ","department":"Animation","contract_type":"CDI","start_date":"2026-01-01","end_date":null,"hourly_rate":20,"monthly_hours":151.67,"social_security_number":"","address":"","postal_code":"","city":"","bank_rib":"","role":"employee","active":true,"night_work":true},"expected_revision":null}]'::jsonb,'[]'::jsonb);
-
-do $qa$ begin if not ((select count(*)=1 and min(revision)=1 from public.employees where id='qa-retry')) then raise exception 'FAILED: idempotent retry creates exactly one version'; end if; end $qa$;
-
-do $qa$ begin begin perform public.apply_workspace_changes('20000000-0000-4000-9000-000000000002','[{"kind":"save","data":{"id":"qa-changed","first_name":"Test","last_name":"qa-changed","email":"qa-changed@example.com","phone":"","position":"DJ","department":"Animation","contract_type":"CDI","start_date":"2026-01-01","end_date":null,"hourly_rate":20,"monthly_hours":151.67,"social_security_number":"","address":"","postal_code":"","city":"","bank_rib":"","role":"employee","active":true,"night_work":true},"expected_revision":null}]'::jsonb,'[]'::jsonb); raise exception 'FAILED: request UUID cannot accept different content'; exception when sqlstate '22023' then null; end; end $qa$;
-
-do $qa$ begin begin perform public.apply_workspace_changes('20000000-0000-4000-8000-000000000011','[{"kind":"save","data":{"id":"qa-member","first_name":"Test","last_name":"qa-member","email":"different@example.com","phone":"","position":"DJ","department":"Animation","contract_type":"CDI","start_date":"2026-01-01","end_date":null,"hourly_rate":20,"monthly_hours":151.67,"social_security_number":"","address":"","postal_code":"","city":"","bank_rib":"","role":"employee","active":true,"night_work":true},"expected_revision":2}]'::jsonb,'[]'::jsonb); raise exception 'FAILED: linked email cannot diverge'; exception when sqlstate '22023' then null; end; end $qa$;
-
-do $qa$ begin begin perform public.apply_workspace_changes('20000000-0000-4000-9000-000000000003',jsonb_build_array(jsonb_build_object('kind','delete','id',private.current_employee_id(),'expected_revision',1)),'[]'); raise exception 'FAILED: own admin access preserved'; exception when sqlstate '42501' then null; end; end $qa$;
-
-select public.apply_workspace_changes('20000000-0000-4000-8000-000000000012','[{"kind":"save","data":{"id":"qa-member","first_name":"Test","last_name":"qa-member","email":"qa-member@example.com","phone":"","position":"DJ","department":"Animation","contract_type":"CDI","start_date":"2026-01-01","end_date":null,"hourly_rate":20,"monthly_hours":151.67,"social_security_number":"","address":"","postal_code":"","city":"","bank_rib":"","role":"employee","active":false,"night_work":true},"expected_revision":2}]'::jsonb,'[]'::jsonb);
+select set_config('request.jwt.claim.sub',current_setting('qa.outsider'),true);
+do $qa$ begin
+  begin perform public.accept_invitation(current_setting('qa.token_a'));
+    raise exception 'invitation accepted by a different email';
+  exception when sqlstate '42501' then null; end;
+end $qa$;
 
 reset role;
 set local role authenticated;
-select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000002',true);
+select set_config('request.jwt.claim.sub',current_setting('qa.staff'),true);
+do $qa$ declare snapshot jsonb;
+begin
+  snapshot := public.accept_invitation(current_setting('qa.token_a'));
+  if snapshot->>'membership_role' <> 'employee'
+    or jsonb_array_length(snapshot->'employees') <> 1
+    or jsonb_array_length(snapshot->'shifts') <> 1
+    or snapshot->'employees'->0->>'id' <> 'qa-staff'
+    or snapshot->'shifts'->0->>'id' <> 'qa-service' then
+    raise exception 'employee snapshot contained the wrong data';
+  end if;
+  if (select count(*) from public.shifts) <> 1 then
+    raise exception 'employee direct RLS read exposed other shifts';
+  end if;
+  begin perform public.restaurant_access(current_setting('qa.venue_a')::uuid);
+    raise exception 'employee listed account access';
+  exception when sqlstate '42501' then null; end;
+  begin perform public.apply_workspace_changes(gen_random_uuid(),current_setting('qa.venue_a')::uuid,'[]','[]');
+    raise exception 'employee changed business data';
+  exception when sqlstate '42501' then null; end;
+end $qa$;
 
-do $qa$ begin if not ((select count(*)=0 from public.employees) and (select count(*)=0 from public.shifts)) then raise exception 'FAILED: archived employee has no table access'; end if; end $qa$;
-
-do $qa$ begin begin perform public.workspace_snapshot(); raise exception 'FAILED: archived employee snapshot denied'; exception when sqlstate '42501' then null; end; end $qa$;
+reset role;
+update auth.users set email='changed-' || current_setting('qa.staff') || '@example.invalid'
+where id=current_setting('qa.staff')::uuid;
+set local role authenticated;
+select set_config('request.jwt.claim.sub',current_setting('qa.staff'),true);
+do $qa$ begin
+  begin perform public.workspace_snapshot(current_setting('qa.venue_a')::uuid);
+    raise exception 'changed employee email retained restaurant access';
+  exception when sqlstate '42501' then null; end;
+  if (select count(*) from public.employees) <> 0 then
+    raise exception 'changed employee email retained direct RLS access';
+  end if;
+end $qa$;
 
 reset role;
 set local role authenticated;
-select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000001',true);
-
-do $qa$ begin begin perform public.apply_workspace_changes('20000000-0000-4000-8000-000000000013','[]'::jsonb,'[{"kind":"save","data":{"id":"qa-archived","employee_id":"qa-member","date":"2026-12-01","start_time":"22:00","end_time":"05:00","role":"DJ","notes":"","is_night_shift":true,"status":"scheduled"},"expected_revision":null}]'::jsonb); raise exception 'FAILED: archived employee cannot receive shifts'; exception when sqlstate '23514' then null; end; end $qa$;
-
-reset role;
-set local role service_role;
-select set_config('request.jwt.claim.sub','',true);
-
-do $qa$ begin begin perform private.bootstrap_admin('10000000-0000-4000-8000-000000000003','Other','Admin'); raise exception 'FAILED: service role cannot bootstrap'; exception when sqlstate '42501' then null; end; end $qa$;
-
-do $qa$ begin begin perform private.link_employee_account('qa-member','10000000-0000-4000-8000-000000000002'); raise exception 'FAILED: service role cannot link accounts'; exception when sqlstate '42501' then null; end; end $qa$;
+select set_config('request.jwt.claim.sub',current_setting('qa.owner'),true);
+do $qa$ begin
+  if (select value->>'available' from jsonb_array_elements(public.restaurant_access(current_setting('qa.venue_a')::uuid)->'members') value
+      where value->>'user_id'=current_setting('qa.staff')) <> 'false' then
+    raise exception 'changed employee email remained available to owner';
+  end if;
+end $qa$;
 
 reset role;
-select '33 checks passed' as validation;
+update auth.users set email=current_setting('qa.staff_email') where id=current_setting('qa.staff')::uuid;
+set local role authenticated;
+select set_config('request.jwt.claim.sub',current_setting('qa.staff'),true);
+do $qa$ begin
+  if (public.workspace_snapshot(current_setting('qa.venue_a')::uuid)->>'membership_role') <> 'employee' then
+    raise exception 'restored employee email did not restore access';
+  end if;
+end $qa$;
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub',current_setting('qa.owner'),true);
+select set_config('qa.invitation_b',public.create_invitation(
+  current_setting('qa.venue_a')::uuid,
+  'qa-' || current_setting('qa.outsider') || '@example.invalid',
+  'admin',null,current_setting('qa.token_b')
+)::text,true);
+select public.revoke_invitation(current_setting('qa.venue_a')::uuid,current_setting('qa.invitation_b')::uuid);
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub',current_setting('qa.outsider'),true);
+do $qa$ begin
+  begin perform public.accept_invitation(current_setting('qa.token_b'));
+    raise exception 'revoked invitation was accepted';
+  exception when sqlstate '22023' then null; end;
+  if (public.workspace_snapshot(current_setting('qa.venue_b')::uuid)->>'membership_role') <> 'owner' then
+    raise exception 'second restaurant owner lost access';
+  end if;
+end $qa$;
+
+reset role;
+select 'SaaS hosted smoke passed; transaction will now roll back' as validation;
 rollback;
-select (select count(*) from public.employees) as employees_after_rollback, (select count(*) from public.shifts) as shifts_after_rollback, (select count(*) from auth.users) as auth_users_after_rollback, (select count(*) from private.mutation_receipts) as receipts_after_rollback;

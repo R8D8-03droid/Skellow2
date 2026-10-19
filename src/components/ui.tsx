@@ -24,7 +24,7 @@ export const departmentTones: Record<string, string> = {
 };
 export const toneFor = (department: string) =>
   departmentTones[department] || "sage";
-export const personName = (person: Employee) =>
+export const personName = (person: Pick<Employee, "firstName" | "lastName">) =>
   `${person.firstName} ${person.lastName}`;
 export const number = (value: number) =>
   new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 }).format(value);
@@ -146,7 +146,7 @@ export function Avatar({
   employee,
   size = "md",
 }: {
-  employee: Employee;
+  employee: Pick<Employee, "firstName" | "lastName" | "department">;
   size?: "xs" | "sm" | "md" | "lg";
 }) {
   return (

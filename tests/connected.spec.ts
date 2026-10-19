@@ -60,6 +60,7 @@ async function mockBackend(page: Page, role: 'admin' | 'employee' = 'admin') {
   };
   await page.context().route('https://mock.supabase.co/**', async route => {
     const path = new URL(route.request().url()).pathname;
+    if (path === '/auth/v1/settings') return json(route, { external: { google: false } });
     if (path === '/auth/v1/token') {
       await state.loginGate?.promise;
       return state.rejectLogin ? json(route, { error: 'invalid_grant', code: 'invalid_credentials', msg: 'Invalid login credentials' }, 400) : json(route, session());
