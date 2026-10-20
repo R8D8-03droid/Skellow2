@@ -28,3 +28,18 @@ gh run list --repo R8D8-03droid/Skellow2 --workflow pages.yml --limit 5
 Revenir à `SKELLOW_DATA_MODE=demo` et reconstruire rétablit la démonstration sans effacer la base. Pour annuler un changement de code publié, pousser un `git revert` sur `main` : le workflow testera et publiera ce nouvel état. Éviter le force-push et ne pas annuler une migration déjà appliquée en effaçant des tables.
 
 Le succès du job **Publish GitHub Pages**, suivi d’une ouverture du site, confirme la publication. Un push accepté seul ne la confirme pas.
+
+## Préparation Vercel
+
+Le projet Vercel [`victor-1844s-projects/skellow2`](https://vercel.com/victor-1844s-projects/skellow2) appartient à l’espace personnel choisi pour Skellow2. Le fichier [`vercel.json`](vercel.json) configure le build Vite à la racine et la réécriture des URLs vers la SPA. L’authentification Vercel protège **tous** les déploiements, y compris l’alias de production. `VITE_DATA_MODE=demo` est fixé pour Production et Preview : le site Vercel ne se connecte pas encore à VICLOUIS.
+
+Le premier déploiement CLI d’un projet neuf est classé automatiquement en Production par Vercel. Cet alias est une démonstration privée ; **GitHub Pages reste l’adresse publique actuelle**. Pour produire une prévisualisation privée depuis un checkout lié :
+
+```sh
+vercel deploy --yes --no-wait --scope victor-1844s-projects
+vercel inspect <URL_DU_DEPLOIEMENT> --scope victor-1844s-projects
+```
+
+La connexion Git automatique n’est pas encore active. Le dépôt `R8D8-03droid/Skellow2` appartient à un **compte GitHub personnel** dont la session GitHub actuelle n’est que collaboratrice ; [Vercel exige que le propriétaire de ce dépôt personnel établisse la connexion Git](https://vercel.com/docs/git/vercel-for-github#missing-git-repository). Aucun token Vercel n’a été confié aux Actions GitHub. Après l’autorisation du propriétaire, connecter ce dépôt au projet Vercel existant, avec `main` comme branche de production, puis vérifier un push de prévisualisation avant de remplacer GitHub Pages.
+
+Avant le passage en SaaS connecté : valider le parcours réel décrit dans [BACKEND.md](BACKEND.md), configurer dans Vercel les deux variables publiques Supabase et `VITE_DATA_MODE=supabase`, puis ajouter l’URL Vercel exacte aux redirections Supabase Auth. Le plan Vercel Hobby sert ici à la préparation interne ; [l’usage commercial exige Pro ou Enterprise](https://vercel.com/docs/limits/fair-use-guidelines).

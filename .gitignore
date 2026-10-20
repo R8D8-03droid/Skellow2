@@ -10,3 +10,4 @@ supabase/.temp/
 supabase/.branches/
 .context/
 .impeccable/hook.cache.json
+.vercel/
