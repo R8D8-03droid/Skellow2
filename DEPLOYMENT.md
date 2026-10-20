@@ -6,7 +6,7 @@ Le build utilise `--base=/Skellow2/` pour charger ses ressources depuis le chemi
 
 ## Mode publié
 
-La publication est actuellement en **démonstration locale** avec `SKELLOW_DATA_MODE=demo`, même si le backend VICLOUIS existe. Le passage en mode connecté doit suivre la migration complémentaire et une vérification réelle du parcours compte confirmé → création d’établissement → invitation → acceptation → accès salarié. Voir [BACKEND.md](BACKEND.md).
+La publication est actuellement en **démonstration locale** avec `SKELLOW_DATA_MODE=demo`. Les deux migrations sont appliquées sur VICLOUIS, la recette hébergée a réussi et l’inscription par e-mail avec confirmation est active. Le passage en mode connecté attend la vérification réelle du parcours compte confirmé → création d’établissement → invitation → acceptation → accès salarié. Voir [BACKEND.md](BACKEND.md).
 
 Les variables suivantes sont configurées dans le dépôt GitHub sous **Settings → Secrets and variables → Actions → Variables** :
 

@@ -1,8 +1,8 @@
 # Backend Skellow — établissements et accès
 
-Le projet Supabase choisi pour Skellow est **[VICLOUIS](https://supabase.com/dashboard/project/lazpzvenasxvianufnwg)** (`lazpzvenasxvianufnwg`, `us-east-1`). La migration initiale `202610160001_workspace.sql` y a déjà été exécutée avec le SQL Editor. **Ne pas la rejouer.** Son historique n’a pas été enregistré par la CLI : il faut le réconcilier avant d’utiliser `supabase db push`. La migration complémentaire `202610180001_restaurant_accounts.sql` introduit plusieurs établissements dans ce même projet.
+Le projet Supabase choisi pour Skellow est **[VICLOUIS](https://supabase.com/dashboard/project/lazpzvenasxvianufnwg)** (`lazpzvenasxvianufnwg`, `us-east-1`). Les migrations `202610160001_workspace.sql` et `202610180001_restaurant_accounts.sql` y ont été exécutées avec le SQL Editor. **Ne pas les rejouer.** Leur historique n’a pas été enregistré par la CLI : il faut le réconcilier avant d’utiliser `supabase db push`. La recette hébergée a réussi le 20 octobre 2026 ; les compteurs de données synthétiques étaient tous à zéro après son `rollback`.
 
-Le site GitHub Pages reste en démonstration jusqu’à ce que la migration complémentaire, l’inscription publique et une connexion réelle aient été vérifiées. Ce mode est une variable de compilation, indépendante du schéma de la base.
+L’inscription publique par e-mail est active avec confirmation d’adresse. Le site GitHub Pages reste en démonstration jusqu’à la vérification d’une inscription, d’une connexion et des accès réels. Ce mode est une variable de compilation, indépendante du schéma de la base.
 
 ## Parcours d’un restaurateur
 
@@ -30,11 +30,11 @@ L’application relit la base au chargement, après modification, toutes les 30 
 
 ## Installation et configuration
 
-Sur **VICLOUIS**, examiner l’état du schéma puis exécuter une seule fois [`supabase/migrations/202610180001_restaurant_accounts.sql`](supabase/migrations/202610180001_restaurant_accounts.sql) en tant qu’opérateur `postgres`, dans une transaction `begin; … commit;`. La migration reprend en place les fiches et services éventuels de l’ancienne installation à un établissement et convertit ses administrateurs liés en propriétaires. Ne pas utiliser `supabase db push` sur VICLOUIS avant d’avoir réconcilié l’historique de la migration initiale.
+Sur **VICLOUIS**, la migration [`supabase/migrations/202610180001_restaurant_accounts.sql`](supabase/migrations/202610180001_restaurant_accounts.sql) est déjà appliquée. Elle a repris en place les fiches et services éventuels de l’ancienne installation à un établissement et converti ses administrateurs liés en propriétaires. Ne pas utiliser `supabase db push` sur VICLOUIS avant d’avoir réconcilié l’historique des migrations exécutées par le SQL Editor.
 
 Pour un **nouveau projet**, appliquer les deux migrations dans l’ordre avec la CLI Supabase après avoir vérifié la cible et le plan de migration. La configuration locale dans `supabase/config.toml` autorise l’inscription par e-mail avec confirmation ; elle **ne configure pas** Auth sur le projet hébergé.
 
-Sur le projet hébergé, activer l’inscription par e-mail, conserver la confirmation d’adresse, définir la **Site URL** sur `https://r8d8-03droid.github.io/Skellow2/` et autoriser cette URL dans les redirections Auth. Configurer SMTP et les modèles d’e-mails adaptés au volume réel avant une ouverture commerciale. Pour Google OAuth, configurer le fournisseur Google dans Supabase et ses URI de redirection chez Google ; le bouton de l’interface s’affiche seulement quand Supabase annonce ce fournisseur actif.
+Sur le projet hébergé, l’inscription par e-mail et la confirmation d’adresse sont actives. La **Site URL** et l’unique redirection Auth autorisée sont `https://r8d8-03droid.github.io/Skellow2/`. Configurer SMTP et les modèles d’e-mails adaptés au volume réel avant une ouverture commerciale. Pour Google OAuth, configurer le fournisseur Google dans Supabase et ses URI de redirection chez Google ; le bouton de l’interface s’affiche seulement quand Supabase annonce ce fournisseur actif.
 
 Pour lancer localement le mode connecté, copier `.env.example` vers `.env.local` et renseigner :
 
@@ -67,7 +67,7 @@ Les tests unitaires contrôlent les migrations dans PGlite et les tests navigate
 psql -v ON_ERROR_STOP=1 -f supabase/tests/hosted-smoke.sql
 ```
 
-Le message `SaaS hosted smoke passed` n’apparaît que si les assertions réussissent. Contrôler ensuite que les comptes, établissements, fiches, services, invitations et reçus de recette n’ont pas été conservés. La recette SQL et les tests simulés ne vérifient pas la réception effective des e-mails ni un cycle réel d’inscription, de connexion, d’invitation et de retour après reconnexion. Réaliser ce parcours avant de passer la publication en mode connecté.
+Le message `SaaS hosted smoke passed` n’apparaît que si les assertions réussissent. Sur VICLOUIS, il a été obtenu le 20 octobre 2026 et un contrôle ultérieur a trouvé zéro compte, établissement, fiche, service et invitation de recette. La recette SQL et les tests simulés ne vérifient pas la réception effective des e-mails ni un cycle réel d’inscription, de connexion, d’invitation et de retour après reconnexion. Réaliser ce parcours avant de passer la publication en mode connecté.
 
 ## Exploitation et limites
 
